@@ -1,0 +1,44 @@
+# dsh-plugins
+
+DeepSeek Harness（dsh）插件集合，每个插件一个顶层目录。
+
+## 插件结构
+
+每个插件目录自成一体：有自己的 `package.json` 和 README，只 import 本目录内的文件和声明过的依赖，单独拿出去也能运行。dsh 提供的包（`@deepseek-ai/cordis` 等）写成 `peerDependencies`，由使用方的 profile 提供。
+
+用户直接从 GitHub 安装：
+
+```
+github:TungLamC/dsh-plugins#<tag>&path:/<插件目录>
+```
+
+dsh 加载的是构建产物，所以 `lib/` 随源码一起提交；改完源码先构建，再提交。
+
+## 分支
+
+- `develop`：开发分支，所有改动都进这里。
+- `main`：默认分支，只放已发布版本。
+
+两个分支都保持线性历史。
+
+## 开发与协作
+
+- 维护者直接在 `develop` 上提交并推送；其他协作者从 `develop` 开分支开发，PR 提到 `develop`。
+- 同步 `develop` 用 `git pull --rebase`。
+- 合并 PR 用 GitHub 的 Rebase and merge 或 Squash and merge，`develop` 保持线性。
+
+## 发布
+
+`main` 只通过快进跟上 `develop`：
+
+```bash
+git push origin develop:main
+```
+
+再打 tag 并推送。`develop` 到 `main` 走这条命令，不走 PR：GitHub 页面上的合并按钮都会生成新提交，让两个分支分叉。
+
+已推送的历史保持原样，修正用新提交：用户的 lockfile 按提交 hash 锁定，改写历史会让他们重装时 404。
+
+## 提交
+
+仓库公开，提交信息只描述插件改动。提交信息、tag、release notes、PR 描述、代码和文档里都不出现 agent 署名（`Co-Authored-By`、`Generated with ...` 之类）。
