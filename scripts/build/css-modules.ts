@@ -35,7 +35,8 @@ export function cssModules(pkg: string, root: string): Rolldown.Plugin {
         minify: true,
         ...module ? { cssModules: { pattern: '[hash]_[local]' } } : {},
       })
-      const classes = Object.fromEntries(Object.entries(exports ?? {}).map(([local, value]) => [local, value.name]))
+      // lightningcss reports exports in hash order; sort them so rebuilds are byte-identical.
+      const classes = Object.fromEntries(Object.entries(exports ?? {}).map(([local, value]) => [local, value.name] as const).sort(([a], [b]) => a.localeCompare(b)))
       const tag = `${pkg}/${name}`
       return [
         `const tag = ${JSON.stringify(tag)};`,

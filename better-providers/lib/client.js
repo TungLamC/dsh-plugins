@@ -455,24 +455,24 @@ if (!document.querySelector(`style[data-plugin-css="${tag}"]`)) {
 	document.head.appendChild(style);
 }
 var SignInSection_module_css_default = {
-	"inline": "cP1WNa_inline",
-	"select": "cP1WNa_select",
-	"title": "cP1WNa_title",
-	"steps": "cP1WNa_steps",
-	"dot": "cP1WNa_dot",
-	"header": "cP1WNa_header",
-	"label": "cP1WNa_label",
-	"danger": "cP1WNa_danger",
-	"row": "cP1WNa_row",
-	"identity": "cP1WNa_identity",
-	"hint": "cP1WNa_hint",
-	"code": "cP1WNa_code",
-	"error": "cP1WNa_error",
-	"input": "cP1WNa_input",
-	"description": "cP1WNa_description",
-	"panel": "cP1WNa_panel",
 	"answer": "cP1WNa_answer",
-	"field": "cP1WNa_field"
+	"code": "cP1WNa_code",
+	"danger": "cP1WNa_danger",
+	"description": "cP1WNa_description",
+	"dot": "cP1WNa_dot",
+	"error": "cP1WNa_error",
+	"field": "cP1WNa_field",
+	"header": "cP1WNa_header",
+	"hint": "cP1WNa_hint",
+	"identity": "cP1WNa_identity",
+	"inline": "cP1WNa_inline",
+	"input": "cP1WNa_input",
+	"label": "cP1WNa_label",
+	"panel": "cP1WNa_panel",
+	"row": "cP1WNa_row",
+	"select": "cP1WNa_select",
+	"steps": "cP1WNa_steps",
+	"title": "cP1WNa_title"
 };
 
 // src/client/oauth/SignInSection.tsx
