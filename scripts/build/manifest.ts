@@ -73,6 +73,12 @@ export function checkManifest(manifest: Manifest, dshVersion: string): string[] 
   if (dsh === undefined) problems.push('engines.dsh: missing')
   else if (semver.validRange(dsh) === null) problems.push(`engines.dsh: "${dsh}" is not a valid range`)
   else if (!semver.satisfies(dshVersion, dsh, { includePrerelease: true })) problems.push(`engines.dsh: "${dsh}" excludes dsh ${dshVersion}`)
+  // dsh packages are versioned with dsh itself: the peer ranges on them state the same support as engines.dsh.
+  for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
+    if (name.startsWith('@deepseek-ai/dsh') && dsh !== undefined && range !== dsh) {
+      problems.push(`peerDependencies.${name}: "${range}" differs from engines.dsh "${dsh}"`)
+    }
+  }
   const files = manifest.files ?? []
   for (const [key, target] of Object.entries(manifest.exports ?? {})) {
     const path = typeof target === 'string' ? target : target['default']
