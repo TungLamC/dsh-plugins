@@ -18,7 +18,7 @@ function loadBundle(): { id: string; exports: { inject: string[]; apply(ctx: unk
   const document = {
     querySelector: () => null,
     createElement: () => ({ dataset: {} as Record<string, string>, textContent: '' }),
-    head: { appendChild: (style: { dataset: Record<string, string> }) => { styles.push(style.dataset['pluginCss'] ?? '') } },
+    head: { appendChild: (style: { dataset: Record<string, string> }) => { styles.push(`${style.dataset['plugin'] ?? ''} ${style.dataset['pluginCss'] ?? ''}`) } },
   }
   let entry: { id: string; factory(require: (id: string) => unknown): unknown } | undefined
   // The browser globals the bundle uses, plus the module loader it registers with.
@@ -84,12 +84,20 @@ const settle = async (): Promise<void> => { for (let i = 0; i < 10; i += 1) awai
 const parts = (on: Partial<Record<'oauth' | 'quota' | 'models' | 'codexFast', boolean>>) => ({ oauth: false, quota: false, models: false, codexFast: false, ...on })
 
 describe('lib/client.js', () => {
+  it('loads without a document, like the bundles dsh ships', () => {
+    const code = readFileSync(new URL('../../lib/client.js', import.meta.url), 'utf8')
+    let entry: { factory(require: (id: string) => unknown): unknown } | undefined
+    runInNewContext(code, { window: { __ModuleLoader__: { load: (value: typeof entry) => { entry = value } } }, AbortController, setTimeout, clearTimeout, console })
+    const local = createRequire(import.meta.url)
+    expect(() => entry?.factory(id => id === 'zod' ? zod : id.startsWith('react') ? local(id) : new Proxy({}, { get: () => () => null }))).not.toThrow()
+  })
+
   it('registers under the package name and requires only shared modules', () => {
     const bundle = loadBundle()
     expect(bundle.id).toBe('dsh-better-providers')
     expect(bundle.requires.every(id => ['zod', 'react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(id))).toBe(true)
     expect(bundle.exports.inject).toEqual(expect.arrayContaining(['slots', 'remote']))
-    expect(bundle.styles).toContain('dsh-better-providers/src/client/oauth/SignInSection.module.css')
+    expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/oauth/SignInSection.module.css')
   })
 
   it('mounts the main contract and shows the card host only while a card part runs', async () => {
