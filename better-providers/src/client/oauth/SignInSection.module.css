@@ -1,0 +1,188 @@
+/*
+ * Sizes and colours follow the Models page (ui-settings-models): a hairline-separated
+ * group on the card; a running sign-in in a tinted panel like the provider editor,
+ * with 12px field labels over their content and 28px buttons.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 500;
+}
+
+/* The Models page's credential dot. */
+.dot {
+  box-sizing: border-box;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.dot[data-state='signedIn'] {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.dot[data-state='signingIn'] {
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+.panel .danger {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.panel .danger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.hint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.error {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary);
+  overflow-wrap: anywhere;
+}
+
+/* The running sign-in: the provider editor's tinted panel. */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-module-platform);
+  /* Keeps a little room under the panel when it is scrolled into view. */
+  scroll-margin-bottom: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+/* A field whose control sits on the label's line: label left, control right. */
+.inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.label {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.answer .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Matches the Models page's own selects: no OS arrow, a 12px chevron inset 10px. */
+.select {
+  box-sizing: border-box;
+  min-width: 180px;
+  max-width: 280px;
+  height: 28px;
+  padding: 0 30px 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-sm);
+  appearance: none;
+  /* A data URI cannot use CSS variables; #81858C is the caption grey of both themes. */
+  background: var(--dsw-alias-bg-layer-1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center / 12px 12px;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  .panel button,
+  .select {
+    min-height: 44px;
+  }
+}

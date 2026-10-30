@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex priority",
+    "description": "Per-session switch that asks OpenAI Codex for priority processing."
+  }
+}

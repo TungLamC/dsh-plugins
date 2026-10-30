@@ -1,0 +1,94 @@
+{
+  "name": "dsh-better-providers",
+  "version": "0.1.0",
+  "description": "Account sign-in, subscription usage, model refresh and Codex priority for DeepSeek Harness built-in providers",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TungLamC/dsh-plugins.git",
+    "directory": "better-providers"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.5 <0.3.0-0"
+  },
+  "exports": {
+    ".": "./lib/host/main/index.js",
+    "./oauth": "./lib/host/oauth/index.js",
+    "./quota": "./lib/host/quota/index.js",
+    "./models": "./lib/host/models/index.js",
+    "./codex-fast": "./lib/host/codex-fast/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./oauth/locale/*.json": "./locale/oauth/*.json",
+    "./quota/locale/*.json": "./locale/quota/*.json",
+    "./models/locale/*.json": "./locale/models/*.json",
+    "./codex-fast/locale/*.json": "./locale/codex-fast/*.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib/**/*.js",
+    "locale/**/*.json",
+    "README*.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-models",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node ../scripts/build.ts better-providers",
+    "test": "vitest run --root .. better-providers"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@earendil-works/pi-ai": "^1.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/cordis-plugin-loader": "catalog:",
+    "@deepseek-ai/dsh-api-remotes": "catalog:",
+    "@deepseek-ai/dsh-authorization": "catalog:",
+    "@deepseek-ai/dsh-client-locale": "catalog:",
+    "@deepseek-ai/dsh-client-store": "catalog:",
+    "@deepseek-ai/dsh-client-ui-conversation": "catalog:",
+    "@deepseek-ai/dsh-client-ui-model-selection": "catalog:",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "catalog:",
+    "@deepseek-ai/dsh-client-ui-primitives": "catalog:",
+    "@deepseek-ai/dsh-client-ui-renderer": "catalog:",
+    "@deepseek-ai/dsh-client-ui-settings": "catalog:",
+    "@deepseek-ai/dsh-client-ui-settings-models": "catalog:",
+    "@deepseek-ai/dsh-client-ui-slots": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-llm": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:",
+    "@deepseek-ai/dsh-storage-domain": "catalog:",
+    "@deepseek-ai/dsh-typert-protocol": "catalog:",
+    "@deepseek-ai/dsh-typert-registry": "catalog:",
+    "@deepseek-ai/schemastery": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

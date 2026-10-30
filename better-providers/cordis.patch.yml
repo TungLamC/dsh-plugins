@@ -1,0 +1,15 @@
+# dsh-better-providers: one row per part, each can be disabled on the Plugins page.
+# The browser half loads only for the row named after the package itself, so the
+# main row carries every part's UI; a part's UI shows only while its row runs.
+# Every part depends on the main row's service: disabling the main row stops them all.
+- insert:
+    - id: better-providers
+      name: dsh-better-providers
+    - id: better-providers-oauth
+      name: dsh-better-providers/oauth
+    - id: better-providers-quota
+      name: dsh-better-providers/quota
+    - id: better-providers-models
+      name: dsh-better-providers/models
+    - id: better-providers-codex-fast
+      name: dsh-better-providers/codex-fast

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex 优先处理",
+    "description": "按会话开关，请求 OpenAI Codex 优先处理。"
+  }
+}

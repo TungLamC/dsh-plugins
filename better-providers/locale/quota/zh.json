@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "订阅额度",
+    "description": "显示已登录的 Codex、Grok 账号的剩余额度和重置时间。"
+  }
+}

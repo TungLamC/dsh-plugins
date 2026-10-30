@@ -1,0 +1,52 @@
+/**
+ * Names shared by the Host and browser halves: the package, its rows, and the
+ * service each row provides (which is also the row's Remote namespace).
+ */
+
+import { z } from 'zod'
+
+export const PACKAGE = 'dsh-better-providers'
+
+/** Parts that can be switched off one by one; the main row switches them all. */
+export const PARTS = ['oauth', 'quota', 'models', 'codexFast'] as const
+export type Part = typeof PARTS[number]
+
+/** Row ids as written in cordis.patch.yml; a part's row id is also its settings namespace. */
+export const ROW = {
+  main: 'better-providers',
+  oauth: 'better-providers-oauth',
+  quota: 'better-providers-quota',
+  models: 'better-providers-models',
+  codexFast: 'better-providers-codex-fast',
+} as const satisfies Record<Part | 'main', string>
+
+/** Cordis service keys; each also names the row's Remote namespace. */
+export const SERVICE = {
+  main: 'betterProviders',
+  oauth: 'betterProvidersOauth',
+  quota: 'betterProvidersQuota',
+  models: 'betterProvidersModels',
+  codexFast: 'betterProvidersCodexFast',
+} as const satisfies Record<Part | 'main', string>
+
+/** Typert takes one registration per package and face, so each row registers under its own module specifier. */
+export const MODULE = {
+  main: PACKAGE,
+  oauth: `${PACKAGE}/oauth`,
+  quota: `${PACKAGE}/quota`,
+  models: `${PACKAGE}/models`,
+  codexFast: `${PACKAGE}/codex-fast`,
+} as const satisfies Record<Part | 'main', string>
+
+/** The settings namespace and credential scope of dsh's built-in pi-ai providers. */
+export const PI_AI = 'llm-pi-ai'
+
+/** A pi-ai provider route that can address a credential record (`llm-pi-ai/<provider>`). */
+export const providerId = z.string().regex(/^[a-z][a-z0-9-]*$/).max(64)
+export const sessionId = z.string().min(1).max(512)
+export const modelId = z.string().min(1).max(200)
+
+/** Whether a route name can address a credential record; llm-pi-ai stores no sign-in for any other. */
+export function isCredentialRoute(provider: string): boolean {
+  return providerId.safeParse(provider).success
+}

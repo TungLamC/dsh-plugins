@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Model refresh",
+    "description": "Update a built-in provider's model list from pi.dev, or restore the built-in list."
+  }
+}
