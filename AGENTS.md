@@ -6,13 +6,19 @@ DeepSeek Harness（dsh）插件集合，每个插件一个顶层目录。
 
 每个插件目录自成一体：有自己的 `package.json` 和 README，只 import 本目录内的文件和声明过的依赖，单独拿出去也能运行。dsh 提供的包（`@deepseek-ai/cordis` 等）写成 `peerDependencies`，由使用方的 profile 提供。
 
-用户直接从 GitHub 安装：
+## 从 GitHub 安装带来的约束
+
+用户不经过 npm，直接从 GitHub 安装单个插件：
 
 ```
 github:TungLamC/dsh-plugins#<tag>&path:/<插件目录>
 ```
 
-dsh 加载的是构建产物，所以 `lib/` 随源码一起提交；改完源码先构建，再提交。
+pnpm 拿到的是仓库里的原样文件，所以每个插件要满足：
+
+- `lib/` 随源码一起提交：dsh 加载的是构建产物，用户那边不会构建。改完源码先构建，再提交。
+- `dependencies` 和 `peerDependencies` 写真实的版本范围，`catalog:`、`workspace:` 只用在 `devDependencies` 里：这两种写法只有 `pnpm publish` / `pack` 才会替换成版本号，从 git 安装会报 `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`；`devDependencies` 用户不安装。
+- 构建在仓库根目录统一执行，插件 `package.json` 的 `scripts` 只放 `build`、`test` 这类不参与安装的脚本：带 `prepare` 或 `prepack` 的 git 依赖会被 pnpm 拒装（`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`）。
 
 ## 分支
 
