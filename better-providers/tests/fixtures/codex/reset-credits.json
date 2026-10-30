@@ -1,0 +1,22 @@
+{
+  "credits": [
+    {
+      "id": "credit-fixture-1",
+      "reset_type": "codex_rate_limits",
+      "is_supported_by_plan": true,
+      "status": "available",
+      "granted_at": "2027-01-01T00:00:00.000000Z",
+      "expires_at": "2027-01-31T00:00:00.000000Z",
+      "redeem_started_at": null,
+      "redeemed_at": null,
+      "profile_image_url": "https://example.com/avatar.png",
+      "profile_user_id": "user-fixture",
+      "title": "Full reset",
+      "description": "A free rate limit reset."
+    }
+  ],
+  "available_count": 1,
+  "total_earned_count": 0,
+  "immediate_reset_purchase_eligible": false,
+  "history_enabled": true
+}

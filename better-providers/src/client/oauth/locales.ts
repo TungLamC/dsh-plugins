@@ -54,6 +54,12 @@ export const zh = {
 
 export type LocaleKey = keyof typeof zh
 
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'better-providers-oauth': LocaleKey
+  }
+}
+
 export const en: Record<LocaleKey, string> = {
   title: 'Account sign-in',
   signedIn: 'Signed in',

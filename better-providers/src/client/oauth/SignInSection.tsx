@@ -13,7 +13,7 @@ import type { OauthRemote, SignInPrompt, SignInView } from '../../shared/oauth.w
 import { settle, type Settled } from '../kit/settle.ts'
 import { useFollowed } from '../kit/use-followed.ts'
 import { flowText, promptLabel, webUrl } from './flow-text.ts'
-import { planName } from './plan.ts'
+import { planName, type PlanBoard } from '../plans.ts'
 import css from './SignInSection.module.css'
 
 /** The llm-pi-ai settings this section reads: whether a route is pinned to an API key. */
@@ -23,7 +23,7 @@ export interface PiAiSettings {
 
 export interface Injected {
   remote: OauthRemote
-  hooks: { piAi: ConfigForm<PiAiSettings> }
+  hooks: { piAi: ConfigForm<PiAiSettings>; plans: PlanBoard }
 }
 
 type Props = PropsRuntime<'better-providers.provider-card'> & InjectFace<Injected> & PropsLocale<'better-providers-oauth'>
@@ -45,10 +45,12 @@ function failure(result: Settled<unknown>, t: T): string | undefined {
 /** How to sign in, as the flow's first question offered it, and the way picked. */
 interface Choice { message: string; options: { id: string; label: string; description?: string }[]; value: string }
 
-function Section({ provider, remote, usePiAi, t }: Props): ReactNode {
+function Section({ provider, remote, usePiAi, usePlans, t }: Props): ReactNode {
   const id = provider.provider
   // A named key reference is the only credential llm-pi-ai uses for the route; an account is then ignored.
   const apiKeyEnv = usePiAi(form => form.value?.providers?.[id]?.apiKeyEnv)
+  // The provider's own answer is current; the token's claim is as old as the token.
+  const reportedPlan = usePlans(plans => plans[id])
   const { value: view, lost } = useFollowed(signal => remote.watch(id, signal), id)
   const [starting, setStarting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -126,6 +128,7 @@ function Section({ provider, remote, usePiAi, t }: Props): ReactNode {
 
   const signingIn = starting || view.inFlight
   const signedIn = view.credential === 'account'
+  const plan = reportedPlan ?? view.plan
   const disabled = busy || lost || !view.writable
   const status: Status = signingIn ? 'signingIn' : signedIn ? 'signedIn' : 'signedOut'
   return (
@@ -134,7 +137,7 @@ function Section({ provider, remote, usePiAi, t }: Props): ReactNode {
         <span className={css['identity']} role="status">
           {/* The same dot as the Models page's credential status, followed by the status itself. */}
           <span className={css['dot']} data-state={status} aria-hidden="true" />
-          <span className={css['title']}>{status === 'signedIn' && view.plan !== undefined ? t('signedInPlan', { plan: planName(view.plan) }) : t(status)}</span>
+          <span className={css['title']}>{status === 'signedIn' && plan !== undefined ? t('signedInPlan', { plan: planName(plan) }) : t(status)}</span>
         </span>
         <span className={css['row']}>
           {signingIn

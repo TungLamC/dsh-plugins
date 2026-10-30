@@ -5,7 +5,7 @@
  */
 
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from './index.ts'
+import type {} from './locales.ts'
 
 type T = TranslateNS<'better-providers-oauth'>
 

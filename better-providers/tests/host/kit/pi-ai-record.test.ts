@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { grantRecord, planOf, providerOf, readGrant, recordKey } from '../../../src/host/kit/pi-ai-record.ts'
+import type { CredentialKey, CredentialRecord } from '@deepseek-ai/dsh-credentials'
+import { grantRecord, grantsOf, planOf, providerOf, readGrant, recordKey } from '../../../src/host/kit/pi-ai-record.ts'
 import { Refusal } from '../../../src/host/kit/refusal.ts'
 
 const grant = { type: 'oauth' as const, access: 'a', refresh: 'r', expires: 1, accountId: 'acc' }
@@ -43,5 +44,48 @@ describe('planOf', () => {
     expect(planOf({ ...grant, access: jwt({ sub: 'x' }) })).toBeUndefined()
     expect(planOf({ ...grant, access: 'opaque' })).toBeUndefined()
     expect(planOf(undefined)).toBeUndefined()
+  })
+})
+
+/** The record half of a credential service, in memory. */
+function credentials(initial: Record<string, CredentialRecord> = {}) {
+  const records = new Map<string, CredentialRecord>(Object.entries(initial))
+  return {
+    records,
+    readRecord: async (key: CredentialKey) => records.get(key),
+    async modifyRecord(key: CredentialKey, mutate: (current: CredentialRecord | undefined) => Promise<CredentialRecord | undefined>) {
+      const next = await mutate(records.get(key))
+      if (next !== undefined) records.set(key, next)
+      return records.get(key)
+    },
+  }
+}
+
+describe('grantsOf', () => {
+  it('reads the account sign-in of a route, and nothing for an API key', async () => {
+    const store = credentials({ 'llm-pi-ai/openai-codex': { kind: 'grant', payload: grant }, 'llm-pi-ai/xai': { kind: 'api-key', key: 'k' } })
+    const grants = grantsOf(store)
+    await expect(grants.read('openai-codex')).resolves.toEqual(grant)
+    await expect(grants.read('xai')).resolves.toBeUndefined()
+    await expect(grants.read('anthropic')).resolves.toBeUndefined()
+    await expect(grants.read('Bad/Name')).rejects.toBeInstanceOf(Refusal)
+  })
+
+  it('writes a sign-in back as plain JSON, and shows a mutation only the sign-in', async () => {
+    const store = credentials({ 'llm-pi-ai/xai': { kind: 'api-key', key: 'k' } })
+    const grants = grantsOf(store)
+    const seen: unknown[] = []
+    const written = await grants.modify('openai-codex', async (current) => {
+      seen.push(current)
+      return { ...grant, idToken: undefined }
+    })
+    expect(written).toEqual(grant)
+    expect(store.records.get('llm-pi-ai/openai-codex')).toEqual({ kind: 'grant', payload: grant })
+    await grants.modify('xai', async (current) => {
+      seen.push(current)
+      return undefined
+    })
+    expect(seen).toEqual([undefined, undefined])
+    expect(store.records.get('llm-pi-ai/xai')).toEqual({ kind: 'api-key', key: 'k' })
   })
 })

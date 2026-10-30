@@ -1,0 +1,16 @@
+{
+  "config": {
+    "currentPeriod": {
+      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+      "start": "2027-01-01T00:00:00Z",
+      "end": "2027-01-08T00:00:00Z"
+    },
+    "billingPeriodEnd": "2027-01-31T00:00:00Z",
+    "monthlyLimit": { "val": "5000" },
+    "used": { "val": "1250" },
+    "creditUsagePercent": 25,
+    "prepaidBalance": { "val": "-300" },
+    "onDemandCap": {},
+    "onDemandUsed": {}
+  }
+}

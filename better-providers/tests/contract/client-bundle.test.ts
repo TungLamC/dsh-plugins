@@ -12,6 +12,16 @@ import * as zod from 'zod'
 
 interface Registration { name: string; key?: string; id?: string; children?: Record<string, unknown> }
 
+/** Stands in for the shared settings form model a row's page stages edits with. */
+class FakeFormModel {
+  disposed = false
+  bind() { return { getSnapshot: () => ({}), subscribe: () => () => {} } }
+  shell() { return {} }
+  field() { return { text: '', overridden: false, invalid: false } }
+  actions() { return {} }
+  dispose() { this.disposed = true }
+}
+
 function loadBundle(): { id: string; exports: { inject: string[]; apply(ctx: unknown): Promise<void> }; requires: string[]; styles: string[] } {
   const code = readFileSync(new URL('../../lib/client.js', import.meta.url), 'utf8')
   const styles: string[] = []
@@ -30,7 +40,7 @@ function loadBundle(): { id: string; exports: { inject: string[]; apply(ctx: unk
   const requires: string[] = []
   const local = createRequire(import.meta.url)
   // UI components only render in a real page; the bundle just needs their bindings.
-  const primitives = new Proxy({}, { get: () => () => null })
+  const primitives = new Proxy({}, { get: (_target, name) => name === 'SettingsFormModel' ? FakeFormModel : () => null })
   const exports = entry.factory((id) => {
     requires.push(id)
     if (id === 'zod') return zod
@@ -67,9 +77,10 @@ function fakeContext() {
       $mount: async (contribution: { package: string }) => { mounted.push(contribution.package); return async () => {} },
       betterProviders: { watchParts: (signal: AbortSignal) => presence.iterable(signal) },
       betterProvidersOauth: {},
+      betterProvidersQuota: {},
     },
     locale: { register: () => () => {} },
-    configForms: { get: () => ({}) },
+    configForms: { get: () => ({ getSnapshot: () => ({ status: 'ready', value: {} }), subscribe: () => () => {} }) },
     inject: (_keys: string[], callback: (child: unknown) => void) => { callback(ctx) },
     effect: (execute: () => (() => void) | void) => { const dispose = execute(); if (dispose !== undefined) disposers.push(dispose) },
     slots: {
@@ -98,6 +109,7 @@ describe('lib/client.js', () => {
     expect(bundle.requires.every(id => ['zod', 'react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(id))).toBe(true)
     expect(bundle.exports.inject).toEqual(expect.arrayContaining(['slots', 'remote']))
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/oauth/SignInSection.module.css')
+    expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/quota/QuotaSection.module.css')
   })
 
   it('mounts the main contract and shows the card host only while a card part runs', async () => {
@@ -123,5 +135,23 @@ describe('lib/client.js', () => {
     await settle()
     host.stop()
     expect(host.live()).toEqual([])
+  })
+
+  it('shows the usage section and the row\'s settings page while the quota part runs', async () => {
+    const { exports } = loadBundle()
+    const host = fakeContext()
+    await exports.apply(host.ctx)
+    expect(host.mounted).toContain('dsh-better-providers/quota')
+    host.presence.push(parts({ quota: true }))
+    await settle()
+    expect(host.live()).toEqual([
+      expect.objectContaining({ name: 'settings.models.provider-card', key: 'llm-pi-ai' }),
+      expect.objectContaining({ name: 'better-providers.provider-card', id: 'better-providers-quota', locale: 'better-providers-quota' }),
+      expect.objectContaining({ name: 'plugins.row.config', key: 'dsh-better-providers#better-providers-quota', locale: 'better-providers-quota' }),
+    ])
+    host.presence.push(parts({ oauth: true }))
+    await settle()
+    expect(host.live().map(entry => entry.id ?? entry.key)).toEqual(['llm-pi-ai', 'better-providers-oauth'])
+    host.stop()
   })
 })

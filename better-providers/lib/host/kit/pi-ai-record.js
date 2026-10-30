@@ -9,6 +9,7 @@ import { Refusal } from "./refusal.js";
 export function recordKey(provider) {
     if (!providerId.safeParse(provider).success)
         throw new Refusal('bad-provider', provider);
+    // The grammar was just checked, which is all the brand stands for.
     return `${PI_AI}/${provider}`;
 }
 /** The provider route a record key belongs to, or undefined for another scope. */
@@ -34,7 +35,7 @@ export function grantRecord(credential) {
     return { kind: 'grant', payload: JSON.parse(JSON.stringify(credential)) };
 }
 /** The claims part of a JWT, or undefined for an opaque token. */
-function claims(token) {
+export function tokenClaims(token) {
     try {
         const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'));
         return payload !== null && typeof payload === 'object' ? payload : undefined;
@@ -51,7 +52,17 @@ function claims(token) {
 export function planOf(credential) {
     if (credential === undefined)
         return undefined;
-    const auth = claims(credential.access)?.['https://api.openai.com/auth'];
+    const auth = tokenClaims(credential.access)?.['https://api.openai.com/auth'];
     const plan = auth !== null && typeof auth === 'object' ? auth['chatgpt_plan_type'] : undefined;
     return typeof plan === 'string' && plan !== '' ? plan : undefined;
+}
+/** The routes' sign-ins over dsh's credential service. */
+export function grantsOf(credentials) {
+    return {
+        read: async (provider) => readGrant(await credentials.readRecord(recordKey(provider))),
+        modify: async (provider, mutate) => readGrant(await credentials.modifyRecord(recordKey(provider), async (current) => {
+            const next = await mutate(readGrant(current));
+            return next === undefined ? undefined : grantRecord(next);
+        })),
+    };
 }

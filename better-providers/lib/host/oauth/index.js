@@ -40,7 +40,7 @@ import { randomUUID } from 'node:crypto';
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { SERVICE } from "../../shared/ids.js";
 import { OAUTH_REMOTE } from "../../shared/oauth.wire.js";
-import { planOf, readGrant } from "../kit/pi-ai-record.js";
+import { grantsOf, planOf, providerOf } from "../kit/pi-ai-record.js";
 import { guard, guardStream } from "../kit/refusal.js";
 import { registerHost } from "../kit/typert.js";
 import { createSignInRelay } from "./relay.js";
@@ -74,6 +74,7 @@ let BetterProvidersOauth = (() => {
         constructor(ctx) {
             super(ctx, SERVICE.oauth);
             registerHost(ctx, OAUTH_REMOTE);
+            const grants = grantsOf(ctx.credentials);
             this.relay = createSignInRelay({
                 flows: {
                     describe: key => ctx.authorization.describe(asKey(key)),
@@ -82,7 +83,10 @@ let BetterProvidersOauth = (() => {
                 },
                 records: {
                     describe: key => ctx.credentials.describeRecord(asKey(key)),
-                    plan: async (key) => planOf(readGrant(await ctx.credentials.readRecord(asKey(key)))),
+                    plan: async (key) => {
+                        const provider = providerOf(key);
+                        return provider === undefined ? undefined : planOf(await grants.read(provider));
+                    },
                     remove: key => ctx.credentials.deleteRecord(asKey(key)),
                 },
                 changes(listener) {

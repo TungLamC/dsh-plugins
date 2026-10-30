@@ -9,10 +9,13 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { MAIN_REMOTE, type PartsPresence } from '../shared/main.wire.ts'
 import { OAUTH_REMOTE } from '../shared/oauth.wire.ts'
+import { QUOTA_REMOTE } from '../shared/quota.wire.ts'
 import { registerCardHost } from './card-host.tsx'
 import { follow } from './kit/follow.ts'
 import { gateParts, type Registrar } from './kit/gate.ts'
 import { registerOauth, registerOauthLocale } from './oauth/index.ts'
+import { createPlanBoard } from './plans.ts'
+import { registerQuota, registerQuotaLocale } from './quota/index.ts'
 
 export const inject = ['slots', 'remote', 'locale', 'configForms']
 
@@ -20,16 +23,19 @@ const nothing: Registrar = () => () => {}
 
 export async function apply(ctx: Context): Promise<void> {
   registerOauthLocale(ctx)
+  registerQuotaLocale(ctx)
   // Mounting is client-side only; a part whose row is off simply never gets called.
   // Owned by this context: unloading the package withdraws the namespaces.
   await ctx.remote.$mount(MAIN_REMOTE)
   await ctx.remote.$mount(OAUTH_REMOTE)
-  ctx.inject(['remote.betterProviders', 'remote.betterProvidersOauth'], (child) => {
+  await ctx.remote.$mount(QUOTA_REMOTE)
+  ctx.inject(['remote.betterProviders', 'remote.betterProvidersOauth', 'remote.betterProvidersQuota'], (child) => {
     const presence = follow<PartsPresence>(signal => child.remote.betterProviders.watchParts(signal))
     child.effect(() => () => { presence.dispose() }, 'better-providers: parts presence')
+    const plans = createPlanBoard()
     child.effect(() => gateParts(presence, {
-      oauth: () => registerOauth(child),
-      quota: nothing,
+      oauth: () => registerOauth(child, plans),
+      quota: () => registerQuota(child, plans),
       models: nothing,
       codexFast: nothing,
     }, [

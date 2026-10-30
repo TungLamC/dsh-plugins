@@ -4,15 +4,16 @@
  * The only module that knows that layout.
  */
 
-import type { CredentialRecord } from '@deepseek-ai/dsh-credentials'
+import type { CredentialKey, CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
 import type { OAuthCredential } from '@earendil-works/pi-ai'
 import { PI_AI, providerId } from '../../shared/ids.ts'
 import { Refusal } from './refusal.ts'
 
 /** The record key of a provider route; refuses a route that cannot address a record. */
-export function recordKey(provider: string): string {
+export function recordKey(provider: string): CredentialKey {
   if (!providerId.safeParse(provider).success) throw new Refusal('bad-provider', provider)
-  return `${PI_AI}/${provider}`
+  // The grammar was just checked, which is all the brand stands for.
+  return `${PI_AI}/${provider}` as CredentialKey
 }
 
 /** The provider route a record key belongs to, or undefined for another scope. */
@@ -37,7 +38,7 @@ export function grantRecord(credential: OAuthCredential): CredentialRecord {
 }
 
 /** The claims part of a JWT, or undefined for an opaque token. */
-function claims(token: string): Record<string, unknown> | undefined {
+export function tokenClaims(token: string): Record<string, unknown> | undefined {
   try {
     const payload: unknown = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
     return payload !== null && typeof payload === 'object' ? payload as Record<string, unknown> : undefined
@@ -53,7 +54,30 @@ function claims(token: string): Record<string, unknown> | undefined {
  */
 export function planOf(credential: OAuthCredential | undefined): string | undefined {
   if (credential === undefined) return undefined
-  const auth = claims(credential.access)?.['https://api.openai.com/auth']
+  const auth = tokenClaims(credential.access)?.['https://api.openai.com/auth']
   const plan = auth !== null && typeof auth === 'object' ? (auth as Record<string, unknown>)['chatgpt_plan_type'] : undefined
   return typeof plan === 'string' && plan !== '' ? plan : undefined
+}
+
+/** The account sign-ins of pi-ai routes, by route. */
+export interface Grants {
+  /** The account sign-in stored for a route; undefined for an API key or nothing. */
+  read(provider: string): Promise<OAuthCredential | undefined>
+  /**
+   * Serialized read-modify-write of a route's record. `mutate` sees the stored sign-in
+   * (undefined for anything else) and returns its replacement, or undefined to leave it.
+   * @returns the sign-in stored afterwards.
+   */
+  modify(provider: string, mutate: (current: OAuthCredential | undefined) => Promise<OAuthCredential | undefined>): Promise<OAuthCredential | undefined>
+}
+
+/** The routes' sign-ins over dsh's credential service. */
+export function grantsOf(credentials: Pick<CredentialProvider, 'readRecord' | 'modifyRecord'>): Grants {
+  return {
+    read: async provider => readGrant(await credentials.readRecord(recordKey(provider))),
+    modify: async (provider, mutate) => readGrant(await credentials.modifyRecord(recordKey(provider), async (current) => {
+      const next = await mutate(readGrant(current))
+      return next === undefined ? undefined : grantRecord(next)
+    })),
+  }
 }

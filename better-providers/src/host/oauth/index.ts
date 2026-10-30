@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-authorization'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { SERVICE } from '../../shared/ids.ts'
 import { OAUTH_REMOTE, type SignInView } from '../../shared/oauth.wire.ts'
-import { planOf, readGrant } from '../kit/pi-ai-record.ts'
+import { grantsOf, planOf, providerOf } from '../kit/pi-ai-record.ts'
 import { guard, guardStream } from '../kit/refusal.ts'
 import { registerHost } from '../kit/typert.ts'
 import { createSignInRelay, type SignInRelay } from './relay.ts'
@@ -32,6 +32,7 @@ export default class BetterProvidersOauth extends TypertRemoteService {
   constructor(ctx: Context) {
     super(ctx, SERVICE.oauth)
     registerHost(ctx, OAUTH_REMOTE)
+    const grants = grantsOf(ctx.credentials)
     this.relay = createSignInRelay({
       flows: {
         describe: key => ctx.authorization.describe(asKey(key)),
@@ -40,7 +41,10 @@ export default class BetterProvidersOauth extends TypertRemoteService {
       },
       records: {
         describe: key => ctx.credentials.describeRecord(asKey(key)),
-        plan: async key => planOf(readGrant(await ctx.credentials.readRecord(asKey(key)))),
+        plan: async (key) => {
+          const provider = providerOf(key)
+          return provider === undefined ? undefined : planOf(await grants.read(provider))
+        },
         remove: key => ctx.credentials.deleteRecord(asKey(key)),
       },
       changes(listener) {
