@@ -1,0 +1,2 @@
+# Build output is committed for GitHub installs; keep it out of diffs and language stats.
+*/lib/** -diff linguist-generated

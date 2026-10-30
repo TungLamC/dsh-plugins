@@ -1,0 +1,52 @@
+packages:
+  - better-providers
+
+# Versions plugins develop and build against; plugin package.json files reference
+# them as "catalog:" in devDependencies only (GitHub installs cannot resolve catalog:).
+# The dsh packages match the dsh release the committed lib/ is built and tested for;
+# bump them together when targeting a new dsh release.
+catalog:
+  '@deepseek-ai/cordis': 4.0.5
+  '@deepseek-ai/cordis-plugin-loader': 1.0.6
+  '@deepseek-ai/schemastery': 3.18.5
+  '@deepseek-ai/dsh-api-remotes': 0.2.1-rc.5
+  '@deepseek-ai/dsh-authorization': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-locale': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-store': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-conversation': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-model-selection': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-plugin-manager': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-primitives': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-renderer': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-settings': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-settings-models': 0.2.1-rc.5
+  '@deepseek-ai/dsh-client-ui-slots': 0.2.1-rc.5
+  '@deepseek-ai/dsh-credentials': 0.2.1-rc.5
+  '@deepseek-ai/dsh-llm': 0.2.1-rc.5
+  '@deepseek-ai/dsh-llm-pi-ai': 0.2.1-rc.5
+  '@deepseek-ai/dsh-settings': 0.2.1-rc.5
+  '@deepseek-ai/dsh-storage-domain': 0.2.1-rc.5
+  '@deepseek-ai/dsh-typert-protocol': 0.2.1-rc.5
+  '@deepseek-ai/dsh-typert-registry': 0.2.1-rc.5
+  '@earendil-works/pi-ai': 1.4.0
+  '@types/node': 22.20.5
+  '@types/react': 18.3.31
+  '@types/semver': 7.7.1
+  es-module-lexer: 1.7.0
+  lightningcss: 1.33.0
+  react: 18.3.1
+  semver: 7.8.5
+  tsdown: 0.22.14
+  typescript: 6.0.3
+  vitest: 4.1.12
+  zod: 4.6.7
+
+# pnpm holds back versions younger than a day; dsh release candidates are
+# consumed as soon as they are published.
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/*'
+
+# Install scripts of pi-ai's transitive dependencies are not needed to build or test.
+allowBuilds:
+  '@google/genai': false
+  protobufjs: false

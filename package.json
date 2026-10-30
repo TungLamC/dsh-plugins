@@ -1,0 +1,25 @@
+{
+  "name": "dsh-plugins",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "typecheck": "node scripts/build.ts --check",
+    "test": "vitest run",
+    "verify": "node scripts/build.ts && vitest run && git diff --exit-code -- '*/lib'"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/semver": "catalog:",
+    "es-module-lexer": "catalog:",
+    "lightningcss": "catalog:",
+    "semver": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
