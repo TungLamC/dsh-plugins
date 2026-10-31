@@ -123,7 +123,7 @@ function Section({ provider, remote, usePiAi, usePlans, t }: Props): ReactNode {
   const signOut = (): void => { act(() => remote.signOut(id)) }
 
   if (apiKeyEnv !== undefined || view.credential === 'api-key') {
-    return <KeyNotice apiKeyEnv={apiKeyEnv} accountStored={view.credential === 'account'} disabled={busy || view.inFlight || !view.writable} onSignOut={signOut} error={error} t={t} />
+    return <KeyNotice accountStored={view.credential === 'account'} disabled={busy || view.inFlight || !view.writable} onSignOut={signOut} error={error} t={t} />
   }
 
   const signingIn = starting || view.inFlight
@@ -175,18 +175,20 @@ function Section({ provider, remote, usePiAi, usePlans, t }: Props): ReactNode {
   )
 }
 
-/** The route authenticates with an API key, so the account sign-in has nothing to do. */
-function KeyNotice({ apiKeyEnv, accountStored, disabled, onSignOut, error, t }: {
-  apiKeyEnv: string | undefined
+/**
+ * The route authenticates with an API key, so the account sign-in has nothing to do:
+ * only a stored account it no longer uses is offered for sign-out.
+ */
+function KeyNotice({ accountStored, disabled, onSignOut, error, t }: {
   accountStored: boolean
   disabled: boolean
   onSignOut(): void
   error: string | undefined
   t: T
 }): ReactNode {
+  if (!accountStored && error === undefined) return null
   return (
     <section className={css['panel']} aria-label={t('title')}>
-      <p className={css['hint']}>{apiKeyEnv === undefined ? t('usingStoredKey') : t('usingApiKey', { ref: apiKeyEnv })}</p>
       {accountStored && (
         <div className={css['header']}>
           <p className={css['hint']}>{t('unusedAccount')}</p>

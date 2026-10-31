@@ -853,8 +853,6 @@ const zh$1 = {
 	copied: "已复制",
 	copyFailed: "复制失败，请手动复制。",
 	readOnly: "凭据存储为只读，暂时无法登录或退出登录。",
-	usingApiKey: "这个服务商指定了 API key（{ref}），请求不会使用账号登录。",
-	usingStoredKey: "这个服务商存的是 API key，请求不会使用账号登录。",
 	unusedAccount: "已登录的账号不会被使用。",
 	cancelled: "登录已取消。",
 	failed: "登录失败：{message}",
@@ -902,8 +900,6 @@ const en$1 = {
 	copied: "Copied",
 	copyFailed: "Could not copy; copy it manually.",
 	readOnly: "Credential storage is read-only; signing in and out are unavailable.",
-	usingApiKey: "This provider is set to use an API key ({ref}); requests do not use the account sign-in.",
-	usingStoredKey: "This provider stores an API key; requests do not use the account sign-in.",
 	unusedAccount: "The signed-in account is not used.",
 	cancelled: "Sign-in cancelled.",
 	failed: "Sign-in failed: {message}",
@@ -1148,7 +1144,6 @@ function Section$1({ provider, remote, usePiAi, usePlans, t }) {
 		act(() => remote.signOut(id));
 	};
 	if (apiKeyEnv !== void 0 || view.credential === "api-key") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyNotice, {
-		apiKeyEnv,
 		accountStored: view.credential === "account",
 		disabled: busy || view.inFlight || !view.writable,
 		onSignOut: signOut,
@@ -1238,36 +1233,33 @@ function Section$1({ provider, remote, usePiAi, usePlans, t }) {
 		]
 	});
 }
-/** The route authenticates with an API key, so the account sign-in has nothing to do. */
-function KeyNotice({ apiKeyEnv, accountStored, disabled, onSignOut, error, t }) {
+/**
+* The route authenticates with an API key, so the account sign-in has nothing to do:
+* only a stored account it no longer uses is offered for sign-out.
+*/
+function KeyNotice({ accountStored, disabled, onSignOut, error, t }) {
+	if (!accountStored && error === void 0) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 		className: SignInSection_module_css_default["panel"],
 		"aria-label": t("title"),
-		children: [
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+		children: [accountStored && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: SignInSection_module_css_default["header"],
+			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 				className: SignInSection_module_css_default["hint"],
-				children: apiKeyEnv === void 0 ? t("usingStoredKey") : t("usingApiKey", { ref: apiKeyEnv })
-			}),
-			accountStored && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: SignInSection_module_css_default["header"],
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-					className: SignInSection_module_css_default["hint"],
-					children: t("unusedAccount")
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
-					variant: "ghost",
-					size: "sm",
-					className: SignInSection_module_css_default["danger"],
-					disabled,
-					onClick: onSignOut,
-					children: t("signOut")
-				})]
-			}),
-			error !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-				className: SignInSection_module_css_default["error"],
-				role: "alert",
-				children: error
-			})
-		]
+				children: t("unusedAccount")
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				variant: "ghost",
+				size: "sm",
+				className: SignInSection_module_css_default["danger"],
+				disabled,
+				onClick: onSignOut,
+				children: t("signOut")
+			})]
+		}), error !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+			className: SignInSection_module_css_default["error"],
+			role: "alert",
+			children: error
+		})]
 	});
 }
 /**
