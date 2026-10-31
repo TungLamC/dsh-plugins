@@ -1,0 +1,238 @@
+/*
+ * Sizes and colours follow the Models page and the sections above: a
+ * hairline-separated row on the card, and in the dialog the editor's tinted panel
+ * with 12px group labels.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Where the models are read from; a long route id is cut off, the full address shows on hover. */
+.source {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.warn {
+  margin: 0;
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.error {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary);
+  overflow-wrap: anywhere;
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* Wider than the default dialog, so a model's notes fit on few lines. */
+.modal {
+  width: min(520px, 100%);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* The groups: the provider editor's tinted panel. */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Groups are divided by a solid line; models within a group by dashed ones. */
+.group + .group {
+  padding-top: 12px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.label {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.item + .item {
+  border-top: 1px dashed var(--dsw-alias-border-l3);
+}
+
+.itemLine {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.itemName {
+  font-weight: 500;
+}
+
+label.itemLine {
+  cursor: pointer;
+}
+
+label.itemLine:has(.check:disabled) {
+  cursor: default;
+}
+
+/* Sized to the 13px model name and centred on its line, which the id shares by baseline. */
+.check {
+  flex: none;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+  cursor: inherit;
+}
+
+.check:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.check:disabled {
+  opacity: 0.5;
+}
+
+/* A checkable model's notes start under its name. */
+.item[data-checkable] > .description {
+  padding-left: 22px;
+}
+
+.itemId {
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The unchanged models' toggle: a dashed divider with a small chevron in its middle. */
+.toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.toggle::before,
+.toggle::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--dsw-alias-border-l3);
+}
+
+.toggle:hover,
+.toggle:focus-visible {
+  color: var(--dsw-alias-label-primary);
+}
+
+.toggle:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.chevron {
+  display: inline-flex;
+  transition: transform 160ms ease;
+}
+
+.toggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .panel button {
+    min-height: 44px;
+  }
+}

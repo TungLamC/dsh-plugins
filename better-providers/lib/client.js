@@ -98,6 +98,26 @@ const MAIN_REMOTE = defineRemote(MODULE.main, SERVICE.main, { watchParts: {
 	signal: true
 } });
 
+// src/shared/models.wire.ts
+/**
+* The models row's Remote contract: refresh a built-in pi-ai route's model list
+* from the newest pi-ai catalog. A preview lists what changed; applying it writes
+* the chosen list into the route's settings.
+*/
+/** Where a route's models are read from: `https://<source>/<route>` answers pi-ai's newest catalog of it. */
+const CATALOG_SOURCE = "pi.dev/api/models/providers";
+const ids = zod.z.array(modelId).max(1e3);
+const MODELS_REMOTE = defineRemote(MODULE.models, SERVICE.models, {
+	preview: {
+		params: [["provider", providerId]],
+		signal: true
+	},
+	apply: { params: [["previewId", zod.z.uuid()], ["choice", zod.z.strictObject({
+		add: ids,
+		keep: ids
+	})]] }
+});
+
 // src/shared/oauth.wire.ts
 /** The oauth row's Remote contract: account sign-in of pi-ai provider routes, relayed to the Models page. */
 const OAUTH_REMOTE = defineRemote(MODULE.oauth, SERVICE.oauth, {
@@ -271,6 +291,540 @@ function gateParts(presence, parts, composites = [], onError = (error) => {
 	};
 }
 
+// src/client/models/locales.ts
+/** Copy of the models part: the refresh row on provider cards and its preview dialog. */
+const NS$2 = "better-providers-models";
+const zh$2 = {
+	title: "刷新模型",
+	source: "模型来源：",
+	refresh: "刷新模型",
+	dialogTitle: "刷新 {provider} 的模型",
+	loading: "正在从 pi.dev 拉取模型列表…",
+	"group.added": "新增 {count}",
+	"group.removed": "已下架 {count}",
+	"group.skipped": "无法添加 {count}",
+	"group.unchanged": "未变化 {count}",
+	"hint.removed": "pi.dev 上已经没有这些模型，勾选的会保留在列表里。",
+	inherited: "内置目录里已有，沿用目录里的全部信息",
+	"skip.api": "协议和这个服务商不同",
+	"skip.endpoint": "接口地址和这个服务商不同",
+	"skip.invalid": "目录数据不完整",
+	showUnchanged: "展开未变化的模型",
+	hideUnchanged: "收起未变化的模型",
+	upToDate: "模型列表和 pi.dev 上的一致。",
+	firstWrite: "这是当前 profile 第一次写入服务商设置：所有共享的服务商配置会一起复制进 profile，之后修改共享配置不再影响这个 profile。",
+	"blocked.expression": "这个服务商的设置用了 !!js 表达式，不能在这里写入，请直接改 cordis.patch.yml。",
+	"blocked.overridden": "llm-pi-ai 的设置被家目录的 cordis.patch.yml 或命令行参数覆盖，不能在这里写入。",
+	apply: "写入",
+	cancel: "取消",
+	close: "关闭",
+	retry: "重试",
+	"outcome.applied": "模型列表已更新。",
+	"outcome.unchanged": "没有需要写入的更改。",
+	"outcome.stale": "设置在预览后有改动，已重新对比。",
+	"outcome.rejected": "dsh 拒绝了新的设置：{detail}",
+	"refused.bad-provider": "这个服务商不在 pi-ai 内置目录里，无法刷新。",
+	"refused.unsupported": "这个服务商不在 pi-ai 内置目录里，无法刷新。",
+	"refused.pi-ai-mismatch": "插件和 dsh 加载的不是同一份 pi-ai，无法刷新。",
+	"refused.bad-choice": "勾选的模型和预览对不上，请重新打开。",
+	"refused.catalog-unreachable": "无法连接 pi.dev，请稍后重试。",
+	"refused.catalog-unknown": "pi.dev 上没有这个服务商的目录。",
+	"refused.catalog-invalid": "pi.dev 返回的目录无法识别。",
+	failed: "刷新失败：{message}"
+};
+const en$2 = {
+	title: "Refresh models",
+	source: "Source: ",
+	refresh: "Refresh models",
+	dialogTitle: "Refresh {provider} models",
+	loading: "Fetching the model list from pi.dev…",
+	"group.added": "New {count}",
+	"group.removed": "Withdrawn {count}",
+	"group.skipped": "Cannot be added {count}",
+	"group.unchanged": "Unchanged {count}",
+	"hint.removed": "pi.dev no longer lists these models; checked ones stay in the list.",
+	inherited: "In the built-in catalog; keeps everything the catalog knows",
+	"skip.api": "Uses another protocol than this provider",
+	"skip.endpoint": "Uses another endpoint than this provider",
+	"skip.invalid": "Incomplete catalog data",
+	showUnchanged: "Show unchanged models",
+	hideUnchanged: "Hide unchanged models",
+	upToDate: "The model list matches pi.dev.",
+	firstWrite: "This is the first provider setting this profile writes: every shared provider configuration is copied into the profile, and later changes to the shared configuration no longer reach it.",
+	"blocked.expression": "This provider's settings use a !!js expression and cannot be written here; edit cordis.patch.yml instead.",
+	"blocked.overridden": "The llm-pi-ai settings are overridden by the home cordis.patch.yml or a command-line option and cannot be written here.",
+	apply: "Write",
+	cancel: "Cancel",
+	close: "Close",
+	retry: "Retry",
+	"outcome.applied": "The model list is updated.",
+	"outcome.unchanged": "There is nothing to write.",
+	"outcome.stale": "The settings changed after the preview; compared again.",
+	"outcome.rejected": "dsh refused the new settings: {detail}",
+	"refused.bad-provider": "This provider is not in pi-ai's built-in catalog and cannot be refreshed.",
+	"refused.unsupported": "This provider is not in pi-ai's built-in catalog and cannot be refreshed.",
+	"refused.pi-ai-mismatch": "This plugin and dsh load different copies of pi-ai, so models cannot be refreshed.",
+	"refused.bad-choice": "The checked models do not match the preview; open it again.",
+	"refused.catalog-unreachable": "pi.dev cannot be reached; try again later.",
+	"refused.catalog-unknown": "pi.dev has no catalog for this provider.",
+	"refused.catalog-invalid": "pi.dev answered with a catalog that cannot be read.",
+	failed: "Refresh failed: {message}"
+};
+
+// src/client/kit/settle.ts
+async function settle(call) {
+	try {
+		const result = await call();
+		if (result.ok) return {
+			ok: true,
+			value: result.value
+		};
+		return result.error.code === "gateway/bad-request" ? {
+			ok: false,
+			refused: result.error.message
+		} : {
+			ok: false,
+			failed: result.error.message
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			failed: error instanceof Error ? error.message : String(error)
+		};
+	}
+}
+
+// src/client/models/model.ts
+/** Every new model added, every withdrawn one kept. */
+function defaultChoice(preview) {
+	return {
+		add: preview.added.map((model) => model.id),
+		keep: preview.removed.map((model) => model.id)
+	};
+}
+/** The choice with one model of a group checked or unchecked, in the preview's order. */
+function toggle(preview, choice, group, id, on) {
+	const field = group === "added" ? "add" : "keep";
+	const listed = group === "added" ? preview.added : preview.removed;
+	const chosen = new Set(choice[field]);
+	if (on) chosen.add(id);
+	else chosen.delete(id);
+	return {
+		...choice,
+		[field]: listed.map((model) => model.id).filter((model) => chosen.has(model))
+	};
+}
+function changes(preview, choice) {
+	return choice.add.length > 0 || preview.removed.some((model) => !choice.keep.includes(model.id));
+}
+function describePreview(preview, choice, t) {
+	const notes = [];
+	const offersChange = preview.added.length > 0 || preview.removed.length > 0;
+	if (preview.blocked !== void 0) notes.push({
+		tone: "error",
+		text: t(`blocked.${preview.blocked}`)
+	});
+	else if (offersChange && preview.firstWrite) notes.push({
+		tone: "warn",
+		text: t("firstWrite")
+	});
+	if (!offersChange) notes.push({
+		tone: "hint",
+		text: t("upToDate")
+	});
+	const groups = [];
+	const add = (kind, items, hint) => {
+		if (items.length === 0) return;
+		groups.push({
+			kind,
+			heading: t(`group.${kind}`, { count: items.length }),
+			...hint === void 0 ? {} : { hint },
+			items,
+			folded: kind === "unchanged"
+		});
+	};
+	add("added", preview.added.map((model) => ({
+		id: model.id,
+		name: model.name,
+		details: model.inherited ? [t("inherited")] : [],
+		checked: choice.add.includes(model.id)
+	})));
+	add("removed", preview.removed.map((model) => ({
+		id: model.id,
+		name: model.name,
+		details: [],
+		checked: choice.keep.includes(model.id)
+	})), t("hint.removed"));
+	add("skipped", preview.skipped.map((model) => ({
+		id: model.id,
+		name: model.name ?? model.id,
+		details: [t(`skip.${model.reason}`)]
+	})));
+	add("unchanged", preview.unchanged.map((model) => ({
+		id: model.id,
+		name: model.name,
+		details: []
+	})));
+	const canWrite = preview.blocked === void 0;
+	return {
+		notes,
+		groups,
+		offersChange,
+		canWrite,
+		canApply: canWrite && changes(preview, choice)
+	};
+}
+function outcomeEffect(outcome, t) {
+	switch (outcome.status) {
+		case "applied":
+		case "unchanged": return {
+			kind: "close",
+			notice: t(`outcome.${outcome.status}`)
+		};
+		case "stale":
+		case "expired": return {
+			kind: "preview-again",
+			notice: t("outcome.stale")
+		};
+		case "blocked": return {
+			kind: "error",
+			text: t(`blocked.${outcome.reason}`)
+		};
+		case "rejected": return {
+			kind: "error",
+			text: t("outcome.rejected", { detail: outcome.detail })
+		};
+	}
+}
+/** Why a Remote call failed, worded. */
+function failureText(result, t) {
+	return "refused" in result ? t(`refused.${result.refused}`) : t("failed", { message: result.failed });
+}
+
+// \0dsh-css:src/client/models/RefreshSection.module.css.mjs
+const tag$2 = "dsh-better-providers/models/RefreshSection.module.css";
+if (typeof document !== "undefined" && document.querySelector(`style[data-plugin-css="${tag$2}"]`) === null) {
+	const style = document.createElement("style");
+	style.dataset.plugin = "dsh-better-providers";
+	style.dataset.pluginCss = tag$2;
+	style.textContent = "._6jk5xq_panel{border-top:.5px solid var(--dsw-alias-border-l2);min-width:0;color:var(--dsw-alias-label-primary);flex-direction:column;gap:10px;padding-top:12px;font-size:13px;line-height:20px;display:flex}._6jk5xq_header{flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;display:flex}._6jk5xq_hint{color:var(--dsw-alias-label-secondary);margin:0}._6jk5xq_source{min-width:0;color:var(--dsw-alias-label-secondary);text-overflow:ellipsis;white-space:nowrap;flex:1 1 0;overflow:hidden}._6jk5xq_url{font-family:var(--ds-font-family-code);font-size:12px}._6jk5xq_warn{color:var(--dsw-alias-state-warn-primary);margin:0}._6jk5xq_error{color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere;margin:0}._6jk5xq_description{color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere;margin:0;font-size:12px;line-height:18px}._6jk5xq_modal{width:min(520px,100%)}._6jk5xq_dialog{min-width:0;max-height:min(60vh,560px);color:var(--dsw-alias-label-primary);flex-direction:column;gap:12px;font-size:13px;line-height:20px;display:flex;overflow-y:auto}._6jk5xq_groups{border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-module-platform);flex-direction:column;gap:12px;min-width:0;padding:12px 14px;display:flex}._6jk5xq_group{flex-direction:column;gap:4px;min-width:0;display:flex}._6jk5xq_group+._6jk5xq_group{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px}._6jk5xq_label{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px}._6jk5xq_items{flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._6jk5xq_item{flex-direction:column;gap:2px;min-width:0;padding:8px 0;display:flex}._6jk5xq_item+._6jk5xq_item{border-top:1px dashed var(--dsw-alias-border-l3)}._6jk5xq_itemLine{flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-width:0;display:flex}._6jk5xq_itemName{font-weight:500}label._6jk5xq_itemLine{cursor:pointer}label._6jk5xq_itemLine:has(._6jk5xq_check:disabled){cursor:default}._6jk5xq_check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);cursor:inherit;flex:none;align-self:center;margin:0}._6jk5xq_check:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}._6jk5xq_check:disabled{opacity:.5}._6jk5xq_item[data-checkable]>._6jk5xq_description{padding-left:22px}._6jk5xq_itemId{color:var(--dsw-alias-label-tertiary);font-family:var(--ds-font-family-code);overflow-wrap:anywhere;font-size:12px}._6jk5xq_toggle{width:100%;height:20px;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:4px;flex:none;align-items:center;gap:8px;padding:0;display:flex}._6jk5xq_toggle:before,._6jk5xq_toggle:after{content:\"\";border-top:1px dashed var(--dsw-alias-border-l3);flex:1}._6jk5xq_toggle:hover,._6jk5xq_toggle:focus-visible{color:var(--dsw-alias-label-primary)}._6jk5xq_toggle:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}._6jk5xq_chevron{transition:transform .16s;display:inline-flex}._6jk5xq_toggle[aria-expanded=true] ._6jk5xq_chevron{transform:rotate(180deg)}@media (prefers-reduced-motion:reduce){._6jk5xq_chevron{transition:none}}@media (pointer:coarse){._6jk5xq_panel button{min-height:44px}}";
+	document.head.appendChild(style);
+}
+var RefreshSection_module_css_default = {
+	"check": "_6jk5xq_check",
+	"chevron": "_6jk5xq_chevron",
+	"description": "_6jk5xq_description",
+	"dialog": "_6jk5xq_dialog",
+	"error": "_6jk5xq_error",
+	"group": "_6jk5xq_group",
+	"groups": "_6jk5xq_groups",
+	"header": "_6jk5xq_header",
+	"hint": "_6jk5xq_hint",
+	"item": "_6jk5xq_item",
+	"itemId": "_6jk5xq_itemId",
+	"itemLine": "_6jk5xq_itemLine",
+	"itemName": "_6jk5xq_itemName",
+	"items": "_6jk5xq_items",
+	"label": "_6jk5xq_label",
+	"modal": "_6jk5xq_modal",
+	"panel": "_6jk5xq_panel",
+	"source": "_6jk5xq_source",
+	"toggle": "_6jk5xq_toggle",
+	"url": "_6jk5xq_url",
+	"warn": "_6jk5xq_warn"
+};
+
+// src/client/models/RefreshSection.tsx
+/**
+* Model refresh on a built-in pi-ai provider card: one row naming where the
+* models are read from, with a button that opens a dialog comparing the route
+* with pi-ai's newest catalog there. The new models
+* are checked to add and the withdrawn ones to keep; writing applies the choice.
+* What shows when is decided by `describePreview`; this file lays it out.
+*/
+function RefreshSection(props) {
+	const { provider, configured } = props;
+	if (provider.declared === true || !configured) return null;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Section$2, { ...props }, provider.provider);
+}
+function Section$2({ provider, remote, t }) {
+	const [open, setOpen] = (0, react.useState)(false);
+	const [notice, setNotice] = (0, react.useState)();
+	const source = `${CATALOG_SOURCE}/${provider.provider}`;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+		className: RefreshSection_module_css_default["panel"],
+		"aria-label": t("title"),
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: RefreshSection_module_css_default["header"],
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: RefreshSection_module_css_default["source"],
+					title: `https://${source}`,
+					children: [t("source"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
+						className: RefreshSection_module_css_default["url"],
+						children: source
+					})]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					variant: "outline",
+					size: "sm",
+					onClick: () => {
+						setNotice(void 0);
+						setOpen(true);
+					},
+					children: t("refresh")
+				})]
+			}),
+			notice !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				className: RefreshSection_module_css_default["hint"],
+				role: "status",
+				children: notice
+			}),
+			open && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RefreshDialog, {
+				provider: provider.provider,
+				name: provider.displayName,
+				remote,
+				t,
+				onClose: (next) => {
+					setOpen(false);
+					setNotice(next);
+				}
+			})
+		]
+	});
+}
+function RefreshDialog({ provider, name, remote, t, onClose }) {
+	const [state, setState] = (0, react.useState)({ phase: "loading" });
+	const [note, setNote] = (0, react.useState)();
+	const [busy, setBusy] = (0, react.useState)(false);
+	const [round, setRound] = (0, react.useState)(0);
+	(0, react.useEffect)(() => {
+		const controller = new AbortController();
+		setState({ phase: "loading" });
+		settle(() => remote.preview(provider, controller.signal)).then((result) => {
+			if (controller.signal.aborted) return;
+			setState(result.ok ? {
+				phase: "ready",
+				preview: result.value,
+				choice: defaultChoice(result.value)
+			} : {
+				phase: "failed",
+				text: failureText(result, t)
+			});
+		});
+		return () => {
+			controller.abort();
+		};
+	}, [provider, round]);
+	const shown = state.phase === "ready" ? describePreview(state.preview, state.choice, t) : void 0;
+	const apply = () => {
+		if (state.phase !== "ready") return;
+		setBusy(true);
+		setNote(void 0);
+		settle(() => remote.apply(state.preview.id, state.choice)).then((result) => {
+			setBusy(false);
+			if (!result.ok) {
+				setNote({
+					tone: "error",
+					text: failureText(result, t)
+				});
+				return;
+			}
+			const effect = outcomeEffect(result.value, t);
+			if (effect.kind === "close") onClose(effect.notice);
+			else if (effect.kind === "preview-again") {
+				setNote({
+					tone: "hint",
+					text: effect.notice
+				});
+				setRound((value) => value + 1);
+			} else setNote({
+				tone: "error",
+				text: effect.text
+			});
+		});
+	};
+	const check = (group, id, on) => {
+		setState((current) => current.phase === "ready" ? {
+			...current,
+			choice: toggle(current.preview, current.choice, group, id, on)
+		} : current);
+	};
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+		open: true,
+		className: RefreshSection_module_css_default["modal"],
+		title: t("dialogTitle", { provider: name }),
+		closeLabel: t("cancel"),
+		onClose: () => {
+			onClose();
+		},
+		footer: shown?.offersChange === false ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			variant: "outline",
+			onClick: () => {
+				onClose();
+			},
+			children: t("close")
+		}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			variant: "outline",
+			onClick: () => {
+				onClose();
+			},
+			children: t("cancel")
+		}), state.phase === "failed" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			variant: "primary",
+			onClick: () => {
+				setNote(void 0);
+				setRound((value) => value + 1);
+			},
+			children: t("retry")
+		}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			variant: "primary",
+			disabled: busy || shown?.canApply !== true,
+			onClick: apply,
+			children: t("apply")
+		})] }),
+		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: RefreshSection_module_css_default["dialog"],
+			children: [
+				state.phase === "loading" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: RefreshSection_module_css_default["hint"],
+					role: "status",
+					children: t("loading")
+				}),
+				state.phase === "failed" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: RefreshSection_module_css_default["error"],
+					role: "alert",
+					children: state.text
+				}),
+				note !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: RefreshSection_module_css_default[note.tone],
+					role: note.tone === "error" ? "alert" : "status",
+					children: note.text
+				}),
+				shown !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					shown.notes.map((line) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: RefreshSection_module_css_default[line.tone],
+						children: line.text
+					}, line.text)),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Groups, {
+						groups: shown.groups.filter((group) => !group.folded),
+						disabled: busy || !shown.canWrite,
+						onCheck: check
+					}),
+					shown.groups.some((group) => group.folded) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Folded, {
+						t,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Groups, {
+							groups: shown.groups.filter((group) => group.folded),
+							disabled: busy || !shown.canWrite,
+							onCheck: check
+						})
+					})
+				] })
+			]
+		})
+	});
+}
+/** The groups in a tinted panel: a solid line between groups, a dashed one between models. */
+function Groups({ groups, disabled, onCheck }) {
+	if (groups.length === 0) return null;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+		className: RefreshSection_module_css_default["groups"],
+		children: groups.map((group) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: RefreshSection_module_css_default["group"],
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: RefreshSection_module_css_default["label"],
+					children: group.heading
+				}),
+				group.hint !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: RefreshSection_module_css_default["description"],
+					children: group.hint
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+					className: RefreshSection_module_css_default["items"],
+					children: group.items.map((item) => {
+						const kind = group.kind;
+						const text = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: RefreshSection_module_css_default["itemName"],
+							children: item.name
+						}), item.name !== item.id && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
+							className: RefreshSection_module_css_default["itemId"],
+							children: item.id
+						})] });
+						const checkable = item.checked !== void 0 && (kind === "added" || kind === "removed");
+						return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
+							className: RefreshSection_module_css_default["item"],
+							"data-checkable": checkable || void 0,
+							children: [checkable ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+								className: RefreshSection_module_css_default["itemLine"],
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+									type: "checkbox",
+									className: RefreshSection_module_css_default["check"],
+									checked: item.checked,
+									disabled,
+									onChange: (event) => {
+										onCheck(kind, item.id, event.target.checked);
+									}
+								}), text]
+							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: RefreshSection_module_css_default["itemLine"],
+								children: text
+							}), item.details.map((detail) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: RefreshSection_module_css_default["description"],
+								children: detail
+							}, detail))]
+						}, item.id);
+					})
+				})
+			]
+		}, group.kind))
+	});
+}
+/** A dashed divider with a chevron in its middle; the chevron turns over when the folded groups open. */
+function Folded({ children, t }) {
+	const [open, setOpen] = (0, react.useState)(false);
+	const id = (0, react.useId)();
+	const label = t(open ? "hideUnchanged" : "showUnchanged");
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+		type: "button",
+		className: RefreshSection_module_css_default["toggle"],
+		"aria-expanded": open,
+		"aria-controls": id,
+		"aria-label": label,
+		title: label,
+		onClick: () => {
+			setOpen((value) => !value);
+		},
+		children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+			className: RefreshSection_module_css_default["chevron"],
+			"aria-hidden": "true",
+			children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 14 })
+		})
+	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+		id,
+		hidden: !open,
+		children: open && children
+	})] });
+}
+
+// src/client/models/index.ts
+function registerModelsLocale(ctx) {
+	ctx.effect(() => ctx.locale.register(NS$2, {
+		zh: zh$2,
+		en: en$2
+	}), `${NS$2}: dictionaries`);
+}
+/** Add the refresh row to the pi-ai cards, after sign-in and usage; returns the disposer. */
+function registerModels(ctx) {
+	const remote = ctx.remote.betterProvidersModels;
+	return ctx.slots.inject(CARD_SLOT, () => ctx.slots.register({
+		name: CARD_SLOT,
+		id: ROW.models,
+		order: 20,
+		locale: NS$2,
+		inject: () => ({ remote })
+	}, RefreshSection));
+}
+
 // src/client/oauth/locales.ts
 /** Copy of the oauth part. */
 const NS$1 = "better-providers-oauth";
@@ -372,29 +926,6 @@ const en$1 = {
 	"flow.waiting": "Waiting for the browser callback…",
 	"flow.signingIn": "Signing in…"
 };
-
-// src/client/kit/settle.ts
-async function settle(call) {
-	try {
-		const result = await call();
-		if (result.ok) return {
-			ok: true,
-			value: result.value
-		};
-		return result.error.code === "gateway/bad-request" ? {
-			ok: false,
-			refused: result.error.message
-		} : {
-			ok: false,
-			failed: result.error.message
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			failed: error instanceof Error ? error.message : String(error)
-		};
-	}
-}
 
 // src/client/kit/use-followed.ts
 /** Follow a Remote stream from a component: opened while `open` is given, reopened when `key` changes. */
@@ -1789,13 +2320,16 @@ const nothing = () => () => {};
 async function apply(ctx) {
 	registerOauthLocale(ctx);
 	registerQuotaLocale(ctx);
+	registerModelsLocale(ctx);
 	await ctx.remote.$mount(MAIN_REMOTE);
 	await ctx.remote.$mount(OAUTH_REMOTE);
 	await ctx.remote.$mount(QUOTA_REMOTE);
+	await ctx.remote.$mount(MODELS_REMOTE);
 	ctx.inject([
 		"remote.betterProviders",
 		"remote.betterProvidersOauth",
-		"remote.betterProvidersQuota"
+		"remote.betterProvidersQuota",
+		"remote.betterProvidersModels"
 	], (child) => {
 		const presence = follow((signal) => child.remote.betterProviders.watchParts(signal));
 		child.effect(() => () => {
@@ -1805,7 +2339,7 @@ async function apply(ctx) {
 		child.effect(() => gateParts(presence, {
 			oauth: () => registerOauth(child, plans),
 			quota: () => registerQuota(child, plans),
-			models: nothing,
+			models: () => registerModels(child),
 			codexFast: nothing
 		}, [{
 			when: (parts) => parts.oauth || parts.quota || parts.models,

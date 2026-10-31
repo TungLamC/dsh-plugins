@@ -78,6 +78,7 @@ function fakeContext() {
       betterProviders: { watchParts: (signal: AbortSignal) => presence.iterable(signal) },
       betterProvidersOauth: {},
       betterProvidersQuota: {},
+      betterProvidersModels: {},
     },
     locale: { register: () => () => {} },
     configForms: { get: () => ({ getSnapshot: () => ({ status: 'ready', value: {} }), subscribe: () => () => {} }) },
@@ -110,6 +111,7 @@ describe('lib/client.js', () => {
     expect(bundle.exports.inject).toEqual(expect.arrayContaining(['slots', 'remote']))
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/oauth/SignInSection.module.css')
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/quota/QuotaSection.module.css')
+    expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/models/RefreshSection.module.css')
   })
 
   it('mounts the main contract and shows the card host only while a card part runs', async () => {
@@ -152,6 +154,23 @@ describe('lib/client.js', () => {
     host.presence.push(parts({ oauth: true }))
     await settle()
     expect(host.live().map(entry => entry.id ?? entry.key)).toEqual(['llm-pi-ai', 'better-providers-oauth'])
+    host.stop()
+  })
+
+  it('shows the refresh row while the models part runs', async () => {
+    const { exports } = loadBundle()
+    const host = fakeContext()
+    await exports.apply(host.ctx)
+    expect(host.mounted).toContain('dsh-better-providers/models')
+    host.presence.push(parts({ models: true }))
+    await settle()
+    expect(host.live()).toEqual([
+      expect.objectContaining({ name: 'settings.models.provider-card', key: 'llm-pi-ai' }),
+      expect.objectContaining({ name: 'better-providers.provider-card', id: 'better-providers-models', order: 20, locale: 'better-providers-models' }),
+    ])
+    host.presence.push(parts({}))
+    await settle()
+    expect(host.live()).toEqual([])
     host.stop()
   })
 })
