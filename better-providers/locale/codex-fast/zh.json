@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Codex 优先处理",
-    "description": "按会话开关，请求 OpenAI Codex 优先处理。"
+    "title": "Codex 快速模式",
+    "description": "按会话开关 OpenAI Codex 的快速模式。"
   }
 }

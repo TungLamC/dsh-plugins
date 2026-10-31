@@ -47,7 +47,8 @@ const MODULE = {
 const PI_AI = "llm-pi-ai";
 /** A pi-ai provider route that can address a credential record (`llm-pi-ai/<provider>`). */
 const providerId = zod.z.string().regex(/^[a-z][a-z0-9-]*$/).max(64);
-const sessionId = zod.z.string().min(1).max(512);
+/** A dsh session id (`session-<uuid>`); also a key dsh's per-record storage can file. */
+const sessionId = zod.z.string().regex(/^[A-Za-z0-9_-]+$/).max(200);
 const modelId = zod.z.string().min(1).max(200);
 /** Whether a route name can address a credential record; llm-pi-ai stores no sign-in for any other. */
 function isCredentialRoute(provider) {
@@ -89,6 +90,28 @@ function defineRemote(pkg, namespace, methods) {
 		})
 	};
 }
+
+// src/shared/codex-fast.wire.ts
+/** The codex-fast row's Remote contract: a per-session switch for OpenAI Codex fast mode, which asks for priority processing. */
+/** The pi-ai route that has fast mode: Codex, signed in with a ChatGPT account. */
+const CODEX_ROUTE = "openai-codex";
+/** Whether a route has fast mode; the Host decides which requests ask for it, the browser where to offer the switch. */
+function prioritizable(provider) {
+	return provider === CODEX_ROUTE;
+}
+const CODEX_FAST_REMOTE = defineRemote(MODULE.codexFast, SERVICE.codexFast, {
+	watchSupport: {
+		params: [],
+		stream: true,
+		signal: true
+	},
+	watch: {
+		params: [["sessionId", sessionId]],
+		stream: true,
+		signal: true
+	},
+	set: { params: [["sessionId", sessionId], ["enabled", zod.z.boolean()]] }
+});
 
 // src/shared/main.wire.ts
 const NO_PARTS = Object.freeze(Object.fromEntries(PARTS.map((part) => [part, false])));
@@ -245,6 +268,414 @@ function follow(open, options = {}) {
 	};
 }
 
+// src/client/kit/form-copy.ts
+/** Copy of the settings form's frame on a row's page (row-config.tsx). */
+/** Spread into the dictionaries of each namespace a row page uses. */
+const FORM_COPY = {
+	zh: {
+		"form.unavailable": "这一行没有在运行，暂时无法修改设置。",
+		"form.readOnly": "配置文件为只读，暂时无法保存。",
+		"form.saveFailed": "保存失败，请检查输入后重试。",
+		"form.save": "保存",
+		"form.saving": "正在保存…",
+		"form.overridden": "已修改",
+		"form.reset": "恢复默认"
+	},
+	en: {
+		"form.unavailable": "This row is not running; its settings cannot be changed now.",
+		"form.readOnly": "The configuration is read-only; changes cannot be saved.",
+		"form.saveFailed": "Saving failed. Check the values and try again.",
+		"form.save": "Save",
+		"form.saving": "Saving…",
+		"form.overridden": "Changed",
+		"form.reset": "Reset to default"
+	}
+};
+
+// \0dsh-css:src/client/kit/row-config.module.css.mjs
+const tag$4 = "dsh-better-providers/kit/row-config.module.css";
+if (typeof document !== "undefined" && document.querySelector(`style[data-plugin-css="${tag$4}"]`) === null) {
+	const style = document.createElement("style");
+	style.dataset.plugin = "dsh-better-providers";
+	style.dataset.pluginCss = tag$4;
+	style.textContent = ".ywlfQq_field{align-items:center;gap:8px;padding:12px 0;display:flex}.ywlfQq_field+.ywlfQq_field{border-top:.5px solid var(--dsw-alias-border-l2)}.ywlfQq_label{min-width:0;color:var(--dsw-alias-label-primary);flex:1;font-size:13px;font-weight:500;line-height:1.5}.ywlfQq_badges{align-items:center;gap:8px;display:inline-flex}.ywlfQq_reset{font:inherit;color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border:none;padding:0;font-size:12px;line-height:1.5}.ywlfQq_reset:hover:not(:disabled){color:var(--dsw-alias-label-primary)}.ywlfQq_reset:disabled{cursor:default}";
+	document.head.appendChild(style);
+}
+var row_config_module_css_default = {
+	"badges": "ywlfQq_badges",
+	"field": "ywlfQq_field",
+	"label": "ywlfQq_label",
+	"reset": "ywlfQq_reset"
+};
+
+// src/client/kit/row-config.tsx
+/**
+* A row's own settings page on the Plugins page: the `plugins.row.config` entry
+* keyed `<package>#<row id>`, over the row's settings namespace (its row id, which
+* holds the row's volatile Config fields). Built on dsh's shared settings form, so
+* edits are staged and written together by its save, as on every settings page.
+*/
+/** A whole number within bounds; an empty draft clears the field back to its default. */
+function integerSetting(field, range, copy) {
+	return {
+		kind: "value",
+		field,
+		...copy,
+		numeric: true,
+		format: (value) => typeof value === "number" ? String(value) : "",
+		parse(text) {
+			const trimmed = text.trim();
+			if (trimmed === "") return { kind: "clear" };
+			if (!/^\d+$/.test(trimmed)) return void 0;
+			const value = Number(trimmed);
+			return value >= range.min && value <= range.max ? {
+				kind: "set",
+				value
+			} : void 0;
+		}
+	};
+}
+/** A boolean; the stored value, or the schema's default when nothing is stored. */
+function switchSetting(field, copy) {
+	return {
+		kind: "switch",
+		field,
+		...copy
+	};
+}
+/** How the form model stages a field: a switch's draft is the text of its state. */
+function fieldSpec(setting) {
+	if (setting.kind === "value") return setting;
+	return {
+		field: setting.field,
+		format: (value) => value === true ? "true" : "false",
+		parse: (text) => ({
+			kind: "set",
+			value: text === "true"
+		})
+	};
+}
+function RowConfigPage({ view, useForm, settings, summary, edit, resetField, save, discard, t }) {
+	const state = useForm((form) => form);
+	const id = (0, react.useId)();
+	if (view === "summary") return summary(state.values, t);
+	const disabled = !state.writable || state.saving;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.SettingsForm, {
+		labels: {
+			unavailable: t("form.unavailable"),
+			readOnly: t("form.readOnly"),
+			saveFailed: t("form.saveFailed"),
+			save: t("form.save"),
+			saving: t("form.saving")
+		},
+		state,
+		onSave: save,
+		onDiscard: discard,
+		children: settings.map((setting) => {
+			const field = state.fields[setting.field] ?? {
+				text: "",
+				overridden: false,
+				invalid: false
+			};
+			if (setting.kind === "switch") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: row_config_module_css_default["field"],
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: row_config_module_css_default["label"],
+						children: t(setting.label)
+					}),
+					field.overridden && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+						className: row_config_module_css_default["badges"],
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							tone: "neutral",
+							children: t("form.overridden")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: row_config_module_css_default["reset"],
+							disabled,
+							onClick: () => {
+								resetField(setting.field);
+							},
+							children: t("form.reset")
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Switch, {
+						checked: field.text === "true",
+						label: t(setting.label),
+						disabled,
+						onChange: (on) => {
+							edit(setting.field, on ? "true" : "false");
+						}
+					})
+				]
+			}, setting.field);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.SettingsValueField, {
+				id: `${id}-${setting.field}`,
+				label: t(setting.label),
+				hint: t(setting.hint),
+				invalidLabel: t(setting.invalid),
+				overriddenLabel: t("form.overridden"),
+				resetLabel: t("form.reset"),
+				numeric: setting.numeric === true,
+				disabled,
+				...field,
+				onEdit: (text) => {
+					edit(setting.field, text);
+				},
+				onReset: () => {
+					resetField(setting.field);
+				}
+			}, setting.field);
+		})
+	});
+}
+/** Register the row's settings page; returns the disposer. */
+function registerRowConfig(ctx, options) {
+	return ctx.slots.inject("plugins.row.config", () => {
+		const scope = ctx.configForms.get(options.row);
+		const model = new _deepseek_ai_dsh_client_ui_primitives.SettingsFormModel(scope, options.settings.map(fieldSpec));
+		const form = model.bind(() => ({
+			...model.shell(),
+			fields: Object.fromEntries(options.settings.map((setting) => [setting.field, model.field(setting.field)])),
+			values: scope.getSnapshot().value
+		}));
+		const unregister = ctx.slots.register({
+			name: "plugins.row.config",
+			key: `${PACKAGE}#${options.row}`,
+			locale: options.locale,
+			inject: () => ({
+				hooks: { form },
+				settings: options.settings,
+				summary: options.summary,
+				...model.actions()
+			})
+		}, RowConfigPage);
+		return () => {
+			unregister();
+			model.dispose();
+		};
+	});
+}
+
+// src/client/kit/settle.ts
+async function settle(call) {
+	try {
+		const result = await call();
+		if (result.ok) return {
+			ok: true,
+			value: result.value
+		};
+		return result.error.code === "gateway/bad-request" ? {
+			ok: false,
+			refused: result.error.message
+		} : {
+			ok: false,
+			failed: result.error.message
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			failed: error instanceof Error ? error.message : String(error)
+		};
+	}
+}
+
+// src/client/kit/use-followed.ts
+/** Follow a Remote stream from a component: opened while `open` is given, reopened when `key` changes. */
+const noSubscription = () => () => {};
+function useFollowed(open, key) {
+	const [followed, setFollowed] = (0, react.useState)();
+	(0, react.useEffect)(() => {
+		if (open === void 0) {
+			setFollowed(void 0);
+			return;
+		}
+		const next = follow(open);
+		setFollowed(next);
+		return () => {
+			next.dispose();
+		};
+	}, [key, open !== void 0]);
+	const subscribe = followed?.subscribe ?? noSubscription;
+	return {
+		value: (0, react.useSyncExternalStore)(subscribe, () => followed?.get()),
+		lost: (0, react.useSyncExternalStore)(subscribe, () => followed?.lost() ?? false)
+	};
+}
+
+// \0dsh-css:src/client/codex-fast/FastToggle.module.css.mjs
+const tag$3 = "dsh-better-providers/codex-fast/FastToggle.module.css";
+if (typeof document !== "undefined" && document.querySelector(`style[data-plugin-css="${tag$3}"]`) === null) {
+	const style = document.createElement("style");
+	style.dataset.plugin = "dsh-better-providers";
+	style.dataset.pluginCss = tag$3;
+	style.textContent = "._6NfPzW_wrap{align-items:center;margin-right:-8px;display:inline-flex;position:relative}._6NfPzW_bolt{border-radius:var(--dsw-radius-sm);height:28px;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:none;justify-content:center;align-items:center;padding:0 2px;display:inline-flex}._6NfPzW_bolt:hover:not(:disabled){color:var(--dsw-alias-label-secondary)}._6NfPzW_bolt:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}._6NfPzW_bolt:disabled{color:var(--dsw-alias-label-dimmed);cursor:default}._6NfPzW_on,._6NfPzW_on:hover:not(:disabled){color:var(--dsw-alias-state-business-primary)}._6NfPzW_on:disabled{color:var(--dsw-alias-state-business-primary);opacity:.6}._6NfPzW_error{color:var(--dsw-alias-state-error-primary);white-space:nowrap;margin-bottom:4px;font-size:12px;line-height:18px;position:absolute;bottom:100%;right:0}";
+	document.head.appendChild(style);
+}
+var FastToggle_module_css_default = {
+	"bolt": "_6NfPzW_bolt",
+	"error": "_6NfPzW_error",
+	"on": "_6NfPzW_on",
+	"wrap": "_6NfPzW_wrap"
+};
+
+// src/client/codex-fast/model.ts
+/**
+* What the composer shows of a session's fast-mode switch: nothing unless the
+* selected model is on the Codex route and the Host has answered, a disabled
+* switch when fast mode does not work in this dsh, otherwise the switch.
+*/
+function fastToggle({ provider, supported, enabled, saving }) {
+	if (provider === void 0 || !prioritizable(provider) || supported === void 0) return { shown: false };
+	if (!supported) return {
+		shown: true,
+		pressed: false,
+		disabled: true,
+		title: "title.unsupported"
+	};
+	if (enabled === void 0) return { shown: false };
+	const pressed = saving ?? enabled;
+	return {
+		shown: true,
+		pressed,
+		disabled: saving !== void 0,
+		title: pressed ? "title.on" : "title.off"
+	};
+}
+
+// src/client/codex-fast/FastToggle.tsx
+/**
+* The fast-mode switch in the composer: a bare lightning bolt right before the
+* model selector, coloured while on. What shows when is decided by
+* `fastToggle`; this file lays it out and saves a click.
+*/
+function FastToggle({ sessionId, remote, useDirectory, useSupport, t }) {
+	const provider = useDirectory((state) => state.current?.provider);
+	const supported = useSupport((value) => value);
+	const watching = supported === true && provider !== void 0 && prioritizable(provider);
+	const { value: enabled } = useFollowed(watching ? (signal) => remote.watch(sessionId, signal) : void 0, sessionId);
+	const [saving, setSaving] = (0, react.useState)();
+	const [failed, setFailed] = (0, react.useState)(false);
+	const view = fastToggle({
+		provider,
+		supported,
+		enabled,
+		saving
+	});
+	if (!view.shown) return null;
+	const toggle = () => {
+		const next = !view.pressed;
+		setSaving(next);
+		setFailed(false);
+		settle(() => remote.set(sessionId, next)).then((result) => {
+			setSaving(void 0);
+			setFailed(!result.ok);
+		});
+	};
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+		className: FastToggle_module_css_default["wrap"],
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: view.pressed ? `${FastToggle_module_css_default["bolt"]} ${FastToggle_module_css_default["on"]}` : FastToggle_module_css_default["bolt"],
+			"aria-label": t("label"),
+			"aria-pressed": view.pressed,
+			title: t(view.title),
+			disabled: view.disabled,
+			onClick: toggle,
+			children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+				width: "16",
+				height: "16",
+				viewBox: "0 0 24 24",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: "1.8",
+				strokeLinejoin: "round",
+				"aria-hidden": "true",
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 4 14h7l-1 8 10-13h-7l1-7Z" })
+			})
+		}), failed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+			className: FastToggle_module_css_default["error"],
+			role: "status",
+			children: t("failed")
+		})]
+	});
+}
+
+// src/client/codex-fast/locales.ts
+/** Copy of the codex-fast part: the composer's fast-mode switch and the row's settings page. */
+const NS$3 = "better-providers-codex-fast";
+const zh$3 = {
+	...FORM_COPY.zh,
+	label: "快速模式",
+	"title.off": "开启快速模式（消耗更多额度）",
+	"title.on": "快速模式已开启，点击关闭",
+	"title.unsupported": "当前 dsh 的 pi-ai 不支持快速模式，详见日志",
+	failed: "保存失败",
+	"settings.default": "新会话默认开启",
+	"settings.summary.on": "新会话默认开启",
+	"settings.summary.off": "新会话默认关闭"
+};
+const en$3 = {
+	...FORM_COPY.en,
+	label: "Fast mode",
+	"title.off": "Turn on fast mode (uses more of your limits)",
+	"title.on": "Fast mode is on; click to turn it off",
+	"title.unsupported": "Fast mode does not work with this dsh's pi-ai; see the log",
+	failed: "Not saved",
+	"settings.default": "On for new sessions",
+	"settings.summary.on": "On for new sessions",
+	"settings.summary.off": "Off for new sessions"
+};
+
+// src/client/codex-fast/index.ts
+const SLOT = "conversation.input.right";
+function registerCodexFastLocale(ctx) {
+	ctx.effect(() => ctx.locale.register(NS$3, {
+		zh: zh$3,
+		en: en$3
+	}), `${NS$3}: dictionaries`);
+}
+/** Add the switch to the composer, beside the model selector it depends on; returns the disposer. */
+function registerCodexFast(ctx) {
+	const remote = ctx.remote.betterProvidersCodexFast;
+	const support = follow((signal) => remote.watchSupport(signal));
+	const supportSnapshot = {
+		getSnapshot: () => support.get(),
+		subscribe: support.subscribe
+	};
+	const composer = ctx.inject([
+		"modelDirectories",
+		"sessions",
+		"remote.session"
+	], (scope) => {
+		scope.effect(() => scope.slots.inject(SLOT, () => scope.slots.register({
+			name: SLOT,
+			id: ROW.codexFast,
+			order: 100,
+			locale: NS$3,
+			inject: (sessionId) => ({
+				sessionId,
+				remote,
+				hooks: {
+					directory: scope.modelDirectories.directoryFor(sessionId).store,
+					support: supportSnapshot
+				}
+			})
+		}, FastToggle)), `${NS$3}: composer switch`);
+	});
+	const settings = registerRowConfig(ctx, {
+		row: ROW.codexFast,
+		locale: NS$3,
+		settings: [switchSetting("defaultEnabled", { label: "settings.default" })],
+		summary: (values, t) => t(values?.["defaultEnabled"] === true ? "settings.summary.on" : "settings.summary.off")
+	});
+	return () => {
+		settings();
+		composer.dispose();
+		support.dispose();
+	};
+}
+
 // src/client/kit/gate.ts
 function gateParts(presence, parts, composites = [], onError = (error) => {
 	console.error("[dsh-better-providers]", error);
@@ -370,29 +801,6 @@ const en$2 = {
 	"refused.catalog-invalid": "pi.dev answered with a catalog that cannot be read.",
 	failed: "Refresh failed: {message}"
 };
-
-// src/client/kit/settle.ts
-async function settle(call) {
-	try {
-		const result = await call();
-		if (result.ok) return {
-			ok: true,
-			value: result.value
-		};
-		return result.error.code === "gateway/bad-request" ? {
-			ok: false,
-			refused: result.error.message
-		} : {
-			ok: false,
-			failed: result.error.message
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			failed: error instanceof Error ? error.message : String(error)
-		};
-	}
-}
 
 // src/client/models/model.ts
 /** Every new model added, every withdrawn one kept. */
@@ -922,29 +1330,6 @@ const en$1 = {
 	"flow.waiting": "Waiting for the browser callback…",
 	"flow.signingIn": "Signing in…"
 };
-
-// src/client/kit/use-followed.ts
-/** Follow a Remote stream from a component: opened while `open` is given, reopened when `key` changes. */
-const noSubscription = () => () => {};
-function useFollowed(open, key) {
-	const [followed, setFollowed] = (0, react.useState)();
-	(0, react.useEffect)(() => {
-		if (open === void 0) {
-			setFollowed(void 0);
-			return;
-		}
-		const next = follow(open);
-		setFollowed(next);
-		return () => {
-			next.dispose();
-		};
-	}, [key, open !== void 0]);
-	const subscribe = followed?.subscribe ?? noSubscription;
-	return {
-		value: (0, react.useSyncExternalStore)(subscribe, () => followed?.get()),
-		lost: (0, react.useSyncExternalStore)(subscribe, () => followed?.lost() ?? false)
-	};
-}
 
 // src/client/oauth/flow-text.ts
 /** A question asking to paste the browser's final redirect (or the code) when the callback cannot reach dsh. */
@@ -1513,127 +1898,6 @@ function registerOauth(ctx, plans) {
 			}
 		})
 	}, SignInSection));
-}
-
-// src/client/kit/form-copy.ts
-/** Copy of the settings form's frame on a row's page (row-config.tsx). */
-/** Spread into the dictionaries of each namespace a row page uses. */
-const FORM_COPY = {
-	zh: {
-		"form.unavailable": "这一行没有在运行，暂时无法修改设置。",
-		"form.readOnly": "配置文件为只读，暂时无法保存。",
-		"form.saveFailed": "保存失败，请检查输入后重试。",
-		"form.save": "保存",
-		"form.saving": "正在保存…",
-		"form.overridden": "已修改",
-		"form.reset": "恢复默认"
-	},
-	en: {
-		"form.unavailable": "This row is not running; its settings cannot be changed now.",
-		"form.readOnly": "The configuration is read-only; changes cannot be saved.",
-		"form.saveFailed": "Saving failed. Check the values and try again.",
-		"form.save": "Save",
-		"form.saving": "Saving…",
-		"form.overridden": "Changed",
-		"form.reset": "Reset to default"
-	}
-};
-
-// src/client/kit/row-config.tsx
-/**
-* A row's own settings page on the Plugins page: the `plugins.row.config` entry
-* keyed `<package>#<row id>`, over the row's settings namespace (its row id, which
-* holds the row's volatile Config fields). Built on dsh's shared settings form, so
-* edits are staged and written together by its save, as on every settings page.
-*/
-/** A whole number within bounds; an empty draft clears the field back to its default. */
-function integerSetting(field, range, copy) {
-	return {
-		field,
-		...copy,
-		numeric: true,
-		format: (value) => typeof value === "number" ? String(value) : "",
-		parse(text) {
-			const trimmed = text.trim();
-			if (trimmed === "") return { kind: "clear" };
-			if (!/^\d+$/.test(trimmed)) return void 0;
-			const value = Number(trimmed);
-			return value >= range.min && value <= range.max ? {
-				kind: "set",
-				value
-			} : void 0;
-		}
-	};
-}
-function RowConfigPage({ view, useForm, settings, summary, edit, resetField, save, discard, t }) {
-	const state = useForm((form) => form);
-	const id = (0, react.useId)();
-	if (view === "summary") return summary(state.values, t);
-	const disabled = !state.writable || state.saving;
-	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.SettingsForm, {
-		labels: {
-			unavailable: t("form.unavailable"),
-			readOnly: t("form.readOnly"),
-			saveFailed: t("form.saveFailed"),
-			save: t("form.save"),
-			saving: t("form.saving")
-		},
-		state,
-		onSave: save,
-		onDiscard: discard,
-		children: settings.map((setting) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.SettingsValueField, {
-			id: `${id}-${setting.field}`,
-			label: t(setting.label),
-			hint: t(setting.hint),
-			invalidLabel: t(setting.invalid),
-			overriddenLabel: t("form.overridden"),
-			resetLabel: t("form.reset"),
-			numeric: setting.numeric === true,
-			disabled,
-			...state.fields[setting.field] ?? {
-				text: "",
-				overridden: false,
-				invalid: false
-			},
-			onEdit: (text) => {
-				edit(setting.field, text);
-			},
-			onReset: () => {
-				resetField(setting.field);
-			}
-		}, setting.field))
-	});
-}
-/** Register the row's settings page; returns the disposer. */
-function registerRowConfig(ctx, options) {
-	return ctx.slots.inject("plugins.row.config", () => {
-		const scope = ctx.configForms.get(options.row);
-		const model = new _deepseek_ai_dsh_client_ui_primitives.SettingsFormModel(scope, options.settings.map(({ field, format, parse }) => ({
-			field,
-			format,
-			parse
-		})));
-		const form = model.bind(() => ({
-			...model.shell(),
-			fields: Object.fromEntries(options.settings.map((setting) => [setting.field, model.field(setting.field)])),
-			values: scope.getSnapshot().value
-		}));
-		const unregister = ctx.slots.register({
-			name: "plugins.row.config",
-			key: `${PACKAGE}#${options.row}`,
-			locale: options.locale,
-			inject: () => ({
-				hooks: { form },
-				settings: options.settings,
-				summary: options.summary,
-				...model.actions()
-			})
-		}, RowConfigPage);
-		return () => {
-			unregister();
-			model.dispose();
-		};
-	});
 }
 
 // src/client/quota/locales.ts
@@ -2308,20 +2572,22 @@ const inject = [
 	"locale",
 	"configForms"
 ];
-const nothing = () => () => {};
 async function apply(ctx) {
 	registerOauthLocale(ctx);
 	registerQuotaLocale(ctx);
 	registerModelsLocale(ctx);
+	registerCodexFastLocale(ctx);
 	await ctx.remote.$mount(MAIN_REMOTE);
 	await ctx.remote.$mount(OAUTH_REMOTE);
 	await ctx.remote.$mount(QUOTA_REMOTE);
 	await ctx.remote.$mount(MODELS_REMOTE);
+	await ctx.remote.$mount(CODEX_FAST_REMOTE);
 	ctx.inject([
 		"remote.betterProviders",
 		"remote.betterProvidersOauth",
 		"remote.betterProvidersQuota",
-		"remote.betterProvidersModels"
+		"remote.betterProvidersModels",
+		"remote.betterProvidersCodexFast"
 	], (child) => {
 		const presence = follow((signal) => child.remote.betterProviders.watchParts(signal));
 		child.effect(() => () => {
@@ -2332,7 +2598,7 @@ async function apply(ctx) {
 			oauth: () => registerOauth(child, plans),
 			quota: () => registerQuota(child, plans),
 			models: () => registerModels(child),
-			codexFast: nothing
+			codexFast: () => registerCodexFast(child)
 		}, [{
 			when: (parts) => parts.oauth || parts.quota || parts.models,
 			register: () => registerCardHost(child)

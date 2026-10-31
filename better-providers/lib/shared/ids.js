@@ -34,7 +34,8 @@ export const MODULE = {
 export const PI_AI = 'llm-pi-ai';
 /** A pi-ai provider route that can address a credential record (`llm-pi-ai/<provider>`). */
 export const providerId = z.string().regex(/^[a-z][a-z0-9-]*$/).max(64);
-export const sessionId = z.string().min(1).max(512);
+/** A dsh session id (`session-<uuid>`); also a key dsh's per-record storage can file. */
+export const sessionId = z.string().regex(/^[A-Za-z0-9_-]+$/).max(200);
 export const modelId = z.string().min(1).max(200);
 /** Whether a route name can address a credential record; llm-pi-ai stores no sign-in for any other. */
 export function isCredentialRoute(provider) {

@@ -1,0 +1,62 @@
+/*
+ * A bare icon with no fill in any state: off, it is as quiet as the captions
+ * beside it; on, it takes the accent colour. The composer spaces its controls
+ * 12px apart; the negative margin brings the bolt next to the model selector.
+ */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: -8px;
+}
+
+.bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.bolt:hover:not(:disabled) {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.bolt:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
+}
+
+.bolt:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
+.on,
+.on:hover:not(:disabled) {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+/* While a change saves, the bolt keeps the state it asked for. */
+.on:disabled {
+  color: var(--dsw-alias-state-business-primary);
+  opacity: 0.6;
+}
+
+/* Above the bolt, so the toolbar does not shift. */
+.error {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 4px;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Better Providers",
-    "description": "为内置模型服务商提供账号登录、订阅额度、模型刷新和 Codex 优先处理。关闭这一行会关闭全部功能。"
+    "description": "为内置模型服务商提供账号登录、订阅额度、模型刷新和 Codex 快速模式。关闭这一行会关闭全部功能。"
   }
 }

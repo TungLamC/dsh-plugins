@@ -29,6 +29,8 @@ catalog:
   '@deepseek-ai/dsh-typert-protocol': 0.2.1-rc.5
   '@deepseek-ai/dsh-typert-registry': 0.2.1-rc.5
   '@earendil-works/pi-ai': 1.4.0
+  # The oldest pi-ai dsh-llm-pi-ai accepts (^1.1.0), for contract tests that run on both ends.
+  pi-ai-1.1.0: npm:@earendil-works/pi-ai@1.1.0
   '@types/node': 22.20.5
   '@types/react': 18.3.31
   '@types/semver': 7.7.1

@@ -10,7 +10,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import * as zod from 'zod'
 
-interface Registration { name: string; key?: string; id?: string; children?: Record<string, unknown> }
+interface Registration { name: string; key?: string; id?: string; children?: Record<string, unknown>; inject?: (...args: unknown[]) => Record<string, unknown> }
 
 /** Stands in for the shared settings form model a row's page stages edits with. */
 class FakeFormModel {
@@ -72,24 +72,38 @@ function fakeContext() {
   const mounted: string[] = []
   const live = new Map<Registration, true>()
   const disposers: (() => void)[] = []
-  const ctx = {
+  const directories: string[] = []
+  const shared = {
     remote: {
       $mount: async (contribution: { package: string }) => { mounted.push(contribution.package); return async () => {} },
       betterProviders: { watchParts: (signal: AbortSignal) => presence.iterable(signal) },
       betterProvidersOauth: {},
       betterProvidersQuota: {},
       betterProvidersModels: {},
+      betterProvidersCodexFast: { watchSupport: (signal: AbortSignal) => channel<boolean>().iterable(signal) },
     },
     locale: { register: () => () => {} },
     configForms: { get: () => ({ getSnapshot: () => ({ status: 'ready', value: {} }), subscribe: () => () => {} }) },
-    inject: (_keys: string[], callback: (child: unknown) => void) => { callback(ctx) },
-    effect: (execute: () => (() => void) | void) => { const dispose = execute(); if (dispose !== undefined) disposers.push(dispose) },
+    modelDirectories: { directoryFor: (sessionId: string) => { directories.push(sessionId); return { store: {} } } },
     slots: {
       inject: (_slot: string, callback: () => () => void) => callback(),
       register: (options: Registration) => { live.set(options, true); return () => { live.delete(options) } },
     },
   }
-  return { ctx, presence, mounted, live: () => [...live.keys()], stop: () => { for (const dispose of disposers.splice(0).reverse()) dispose() } }
+  /** A context whose effects end with `owned`, and whose injected children end with it too, as cordis fibers do. */
+  const scope = (owned: (() => void)[]): object => ({
+    ...shared,
+    effect: (execute: () => (() => void) | void) => { const dispose = execute(); if (dispose !== undefined) owned.push(dispose) },
+    inject: (_keys: string[], callback: (child: unknown) => void) => {
+      const own: (() => void)[] = []
+      const dispose = (): void => { for (const each of own.splice(0).reverse()) each() }
+      owned.push(dispose)
+      callback(scope(own))
+      return { dispose }
+    },
+  })
+  const ctx = scope(disposers)
+  return { ctx, presence, mounted, directories, live: () => [...live.keys()], stop: () => { for (const dispose of disposers.splice(0).reverse()) dispose() } }
 }
 
 const settle = async (): Promise<void> => { for (let i = 0; i < 10; i += 1) await Promise.resolve() }
@@ -112,6 +126,8 @@ describe('lib/client.js', () => {
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/oauth/SignInSection.module.css')
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/quota/QuotaSection.module.css')
     expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/models/RefreshSection.module.css')
+    expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/codex-fast/FastToggle.module.css')
+    expect(bundle.styles).toContain('dsh-better-providers dsh-better-providers/kit/row-config.module.css')
   })
 
   it('mounts the main contract and shows the card host only while a card part runs', async () => {
@@ -131,7 +147,7 @@ describe('lib/client.js', () => {
 
     host.presence.push(parts({ codexFast: true }))
     await settle()
-    expect(host.live()).toEqual([])
+    expect(host.live().map(entry => entry.name)).toEqual(['conversation.input.right', 'plugins.row.config'])
 
     host.presence.push(parts({ models: true }))
     await settle()
@@ -168,6 +184,27 @@ describe('lib/client.js', () => {
       expect.objectContaining({ name: 'settings.models.provider-card', key: 'llm-pi-ai' }),
       expect.objectContaining({ name: 'better-providers.provider-card', id: 'better-providers-models', order: 20, locale: 'better-providers-models' }),
     ])
+    host.presence.push(parts({}))
+    await settle()
+    expect(host.live()).toEqual([])
+    host.stop()
+  })
+
+  it('shows the priority switch in the composer and the row\'s settings page while the codex-fast part runs', async () => {
+    const { exports } = loadBundle()
+    const host = fakeContext()
+    await exports.apply(host.ctx)
+    expect(host.mounted).toContain('dsh-better-providers/codex-fast')
+    host.presence.push(parts({ codexFast: true }))
+    await settle()
+    const [toggle, page] = host.live()
+    expect([toggle, page]).toEqual([
+      expect.objectContaining({ name: 'conversation.input.right', id: 'better-providers-codex-fast', locale: 'better-providers-codex-fast' }),
+      expect.objectContaining({ name: 'plugins.row.config', key: 'dsh-better-providers#better-providers-codex-fast', locale: 'better-providers-codex-fast' }),
+    ])
+    // Each composer gets its session's id and model selection.
+    expect(toggle?.inject?.('session-1')).toMatchObject({ sessionId: 'session-1', hooks: { directory: {}, support: expect.objectContaining({ getSnapshot: expect.any(Function) }) } })
+    expect(host.directories).toEqual(['session-1'])
     host.presence.push(parts({}))
     await settle()
     expect(host.live()).toEqual([])

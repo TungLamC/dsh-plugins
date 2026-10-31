@@ -14,5 +14,7 @@ account is synthetic: no token, account id, e-mail or real usage figure.
   for a ChatGPT Pro sign-in (October 2026), with made-up values.
 - `codex/consume.json`: written by hand; redeeming a reset card was not tried on a
   real account.
+- `codex/stream.sse`: written by hand; the shortest `chatgpt.com/backend-api/codex/responses`
+  event stream pi-ai's Codex protocol reads as a complete answer.
 - `xai/*.json`: written by hand after the fields Grok Build reads; not observed on a
   real account.

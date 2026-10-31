@@ -248,6 +248,9 @@ catalogs:
     lightningcss:
       specifier: 1.33.0
       version: 1.33.0
+    pi-ai-1.1.0:
+      specifier: npm:@earendil-works/pi-ai@1.1.0
+      version: 1.1.0
     react:
       specifier: 18.3.1
       version: 18.3.1
@@ -370,6 +373,9 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 18.3.31
+      pi-ai-1.1.0:
+        specifier: 'catalog:'
+        version: '@earendil-works/pi-ai@1.1.0(@aws-sdk/credential-provider-node@3.972.90)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)'
       react:
         specifier: 'catalog:'
         version: 18.3.1
@@ -727,6 +733,11 @@ packages:
 
   '@deepseek-ai/schemastery@3.18.5':
     resolution: {integrity: sha512-Mnobvqf9rHsZYv4g5edj5ddxS1oF1kIdSlz0DunUgnY3LWG5F26MqvH3YOOsSaodCgyzJ16OMN9O99/s5Crtdw==}
+
+  '@earendil-works/pi-ai@1.1.0':
+    resolution: {integrity: sha512-1T7LAkc/5Bvc0v6w4vAGVdCrli0o/E0pEmYKTnixu95vSFArBjvbhS/G4ZwI0RUePgf0Imcu0VyqlM4EcXxqfw==}
+    engines: {node: '>=22.19.0'}
+    hasBin: true
 
   '@earendil-works/pi-ai@1.4.0':
     resolution: {integrity: sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ==}
@@ -2291,6 +2302,31 @@ snapshots:
     dependencies:
       '@deepseek-ai/cosmokit': 1.8.6
       '@standard-schema/spec': 1.1.0
+
+  '@earendil-works/pi-ai@1.1.0(@aws-sdk/credential-provider-node@3.972.90)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.129.0(zod@4.6.7)
+      '@aws-sdk/client-bedrock-runtime': 3.1127.0
+      '@earendil-works/pi-telemetry': 1.4.0
+      '@google/genai': 2.21.0
+      '@smithy/node-http-handler': 4.12.1
+      http-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.90)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)
+      partial-json: 0.1.7
+      typebox: 1.3.27
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@modelcontextprotocol/sdk'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - bufferutil
+      - kerberos
+      - supports-color
+      - undici
+      - utf-8-validate
+      - ws
+      - zod
 
   '@earendil-works/pi-ai@1.4.0(@aws-sdk/credential-provider-node@3.972.90)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)':
     dependencies:

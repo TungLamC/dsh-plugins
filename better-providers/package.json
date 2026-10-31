@@ -1,7 +1,7 @@
 {
   "name": "dsh-better-providers",
   "version": "0.1.0",
-  "description": "Account sign-in, subscription usage, model refresh and Codex priority for DeepSeek Harness built-in providers",
+  "description": "Account sign-in, subscription usage, model refresh and Codex fast mode for DeepSeek Harness built-in providers",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -88,6 +88,7 @@
     "@deepseek-ai/schemastery": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@types/react": "catalog:",
+    "pi-ai-1.1.0": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"
   }

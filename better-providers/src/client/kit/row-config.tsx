@@ -9,7 +9,7 @@ import { useId, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import {
-  SettingsForm, SettingsFormModel, SettingsValueField,
+  SettingsForm, SettingsFormModel, SettingsValueField, Switch, Tag,
   type SettingsFieldState, type SettingsFieldWrite, type SettingsFormActions, type SettingsFormShell,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PluginConfigViewProps } from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, LocaleNamespaceMap, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { PACKAGE } from '../../shared/ids.ts'
 import { FORM_COPY } from './form-copy.ts'
+import css from './row-config.module.css'
 
 
 type FormCopyKey = keyof typeof FORM_COPY.zh
@@ -27,7 +28,11 @@ export type RowPageNamespace = {
 }[keyof LocaleNamespaceMap & string]
 
 /** One field of the row's section, with the locale keys `K` of its copy. */
-export interface RowSetting<K extends string = string> {
+export type RowSetting<K extends string = string> = ValueSetting<K> | SwitchSetting<K>
+
+/** A field typed as text. */
+export interface ValueSetting<K extends string = string> {
+  kind: 'value'
   field: string
   label: K
   hint: K
@@ -40,9 +45,17 @@ export interface RowSetting<K extends string = string> {
   numeric?: boolean
 }
 
+/** A boolean field, shown as a switch; its draft text is `true` or `false`. */
+export interface SwitchSetting<K extends string = string> {
+  kind: 'switch'
+  field: string
+  label: K
+}
+
 /** A whole number within bounds; an empty draft clears the field back to its default. */
-export function integerSetting<K extends string>(field: string, range: { min: number; max: number }, copy: Pick<RowSetting<K>, 'label' | 'hint' | 'invalid'>): RowSetting<K> {
+export function integerSetting<K extends string>(field: string, range: { min: number; max: number }, copy: Pick<ValueSetting<K>, 'label' | 'hint' | 'invalid'>): RowSetting<K> {
   return {
+    kind: 'value',
     field,
     ...copy,
     numeric: true,
@@ -54,6 +67,21 @@ export function integerSetting<K extends string>(field: string, range: { min: nu
       const value = Number(trimmed)
       return value >= range.min && value <= range.max ? { kind: 'set', value } : undefined
     },
+  }
+}
+
+/** A boolean; the stored value, or the schema's default when nothing is stored. */
+export function switchSetting<K extends string>(field: string, copy: Pick<SwitchSetting<K>, 'label'>): RowSetting<K> {
+  return { kind: 'switch', field, ...copy }
+}
+
+/** How the form model stages a field: a switch's draft is the text of its state. */
+function fieldSpec(setting: RowSetting): Pick<ValueSetting, 'field' | 'format' | 'parse'> {
+  if (setting.kind === 'value') return setting
+  return {
+    field: setting.field,
+    format: value => value === true ? 'true' : 'false',
+    parse: text => ({ kind: 'set', value: text === 'true' }),
   }
 }
 
@@ -95,22 +123,39 @@ function RowConfigPage({ view, useForm, settings, summary, edit, resetField, sav
       onSave={save}
       onDiscard={discard}
     >
-      {settings.map(setting => (
-        <SettingsValueField
-          key={setting.field}
-          id={`${id}-${setting.field}`}
-          label={t(setting.label)}
-          hint={t(setting.hint)}
-          invalidLabel={t(setting.invalid)}
-          overriddenLabel={t('form.overridden')}
-          resetLabel={t('form.reset')}
-          numeric={setting.numeric === true}
-          disabled={disabled}
-          {...state.fields[setting.field] ?? { text: '', overridden: false, invalid: false }}
-          onEdit={(text) => { edit(setting.field, text) }}
-          onReset={() => { resetField(setting.field) }}
-        />
-      ))}
+      {settings.map((setting) => {
+        const field = state.fields[setting.field] ?? { text: '', overridden: false, invalid: false }
+        if (setting.kind === 'switch') {
+          return (
+            <div key={setting.field} className={css['field']}>
+              <span className={css['label']}>{t(setting.label)}</span>
+              {field.overridden && (
+                <span className={css['badges']}>
+                  <Tag tone="neutral">{t('form.overridden')}</Tag>
+                  <button type="button" className={css['reset']} disabled={disabled} onClick={() => { resetField(setting.field) }}>{t('form.reset')}</button>
+                </span>
+              )}
+              <Switch checked={field.text === 'true'} label={t(setting.label)} disabled={disabled} onChange={(on) => { edit(setting.field, on ? 'true' : 'false') }} />
+            </div>
+          )
+        }
+        return (
+          <SettingsValueField
+            key={setting.field}
+            id={`${id}-${setting.field}`}
+            label={t(setting.label)}
+            hint={t(setting.hint)}
+            invalidLabel={t(setting.invalid)}
+            overriddenLabel={t('form.overridden')}
+            resetLabel={t('form.reset')}
+            numeric={setting.numeric === true}
+            disabled={disabled}
+            {...field}
+            onEdit={(text) => { edit(setting.field, text) }}
+            onReset={() => { resetField(setting.field) }}
+          />
+        )
+      })}
     </SettingsForm>
   )
 }
@@ -119,7 +164,7 @@ function RowConfigPage({ view, useForm, settings, summary, edit, resetField, sav
 export function registerRowConfig<N extends RowPageNamespace>(ctx: Context, options: RowConfigOptions<N>): () => void {
   return ctx.slots.inject('plugins.row.config', () => {
     const scope = ctx.configForms.get<Record<string, unknown>>(options.row)
-    const model = new SettingsFormModel(scope, options.settings.map(({ field, format, parse }) => ({ field, format, parse })))
+    const model = new SettingsFormModel(scope, options.settings.map(fieldSpec))
     const form = model.bind((): FormState => ({
       ...model.shell(),
       fields: Object.fromEntries(options.settings.map(setting => [setting.field, model.field(setting.field)])),

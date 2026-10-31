@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Codex priority",
-    "description": "Per-session switch that asks OpenAI Codex for priority processing."
+    "title": "Codex fast mode",
+    "description": "Per-session switch for OpenAI Codex fast mode."
   }
 }
