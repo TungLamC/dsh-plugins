@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Web Access",
+    "description": "Several sources for web search: the enabled tiers below are tried in order, moving on when one fails or finds nothing. Codex, OpenAI and Gemini use the sign-in or key of their provider on the Models page."
+  }
+}

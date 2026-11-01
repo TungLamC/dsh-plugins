@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Web Access",
+    "description": "为网页搜索提供多个搜索来源：按下列顺序尝试已开启的档位，失败或没有结果时换下一档。Codex、OpenAI、Gemini 使用模型页里对应服务商的登录或 key。"
+  }
+}

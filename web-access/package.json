@@ -1,0 +1,79 @@
+{
+  "name": "dsh-web-access",
+  "version": "0.1.0",
+  "description": "Web search for DeepSeek Harness through ChatGPT Codex, OpenAI, Gemini, Exa, Parallel and AnySearch, falling back in order",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TungLamC/dsh-plugins.git",
+    "directory": "web-access"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.5"
+  },
+  "exports": {
+    ".": "./lib/host/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib/**/*.js",
+    "locale/**/*.json",
+    "README*.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node ../scripts/build.ts web-access",
+    "test": "vitest run --root .. web-access"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-credentials": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-web": ">=0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@earendil-works/pi-ai": "^1.1.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-api-remotes": "catalog:",
+    "@deepseek-ai/dsh-client-locale": "catalog:",
+    "@deepseek-ai/dsh-client-store": "catalog:",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "catalog:",
+    "@deepseek-ai/dsh-client-ui-primitives": "catalog:",
+    "@deepseek-ai/dsh-client-ui-renderer": "catalog:",
+    "@deepseek-ai/dsh-client-ui-settings": "catalog:",
+    "@deepseek-ai/dsh-client-ui-slots": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-llm": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:",
+    "@deepseek-ai/dsh-typert-protocol": "catalog:",
+    "@deepseek-ai/dsh-typert-registry": "catalog:",
+    "@deepseek-ai/dsh-web": "catalog:",
+    "@deepseek-ai/schemastery": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@types/react": "catalog:",
+    "pi-ai-1.1.0": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

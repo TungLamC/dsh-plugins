@@ -1,0 +1,11 @@
+# dsh-web-access: inserts the search row and points web_search at it.
+- insert:
+    - id: web-access
+      name: dsh-web-access
+
+# web_search uses the search provider this plugin registers. A patch by id replaces the row's config as a
+# whole, so fetchProvider repeats dsh's own `http`. Without this plugin, dsh's deepseek-official returns.
+- id: web
+  config:
+    searchProvider: web-access
+    fetchProvider: http
