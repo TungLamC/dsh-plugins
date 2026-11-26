@@ -24,9 +24,9 @@ import {
   IconCloseFillRegular,
   isMobileDevice,
   observeStickyMenuGroups,
-  rankByName,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { LocaleKey, Translate } from './locales.ts'
+import { rankByName } from './rank-by-name.ts'
 import './picker.css'
 
 export interface MenuModel {

@@ -213,3 +213,4 @@ pnpm test          # 库级测试：Fake harness + 安装版 dsh agent-loop / to
 - Antigravity 的原生提问是靠 agy 的一个没写进文档的约定识别的（工具调用 id 以 `interaction_` 开头，T3 Code 也这样判断）。agy 改了约定时，提问会显示成列出同样选项的审批卡片，照样能答。
 - Antigravity 的后台任务是按"一轮结束时还没结束的工具"认出来的。agy 要是一直不报告某个工具结束，它会一直留在"N 个运行中"里，这个会话的 agy 进程也一直不回收。
 - 图标来自 Lobe Icons（`@lobehub/icons-static-svg` 1.102.0，MIT，Copyright (c) 2023 LobeHub），路径未改动，许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。引擎品牌图标用 `claude-color`、`codex`，Antigravity 用 `antigravity-color`；模型菜单里的 provider 图标用上面列出的名字对应的文件，有 `-color` 版本时用 `-color` 版本，由 `scripts/provider-marks.ts` 从图标包生成到 `src/client/provider-marks.ts`，只去掉了标题、改写了渐变 id。
+- 模型菜单和 `/` 菜单的模糊排序移植自 DeepSeek Harness 0.2.2-rc.5 的 `rankByName`（MIT，Copyright (c) 2026 DeepSeek，许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。dsh 0.2.3 删掉了这个导出，插件自带一份，在新旧版本上排序一致。

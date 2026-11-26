@@ -241,12 +241,79 @@ function nativeActions(remote) {
 	};
 }
 
-// src/client/commands.ts
+// src/client/rank-by-name.ts
+/** Extra weight for name starts and separator boundaries. */
+function boundaryBonus(name, index) {
+	return index === 0 || name.charAt(index - 1) === "-" || name.charAt(index - 1) === "_" ? 8 : 0;
+}
 /**
-* `/` menu groups for native slash commands and skills: one group per
-* harness, populated only in that harness's sessions. A pick inserts
-* `/token ` literally; the Host turns it into the harness's own invocation.
+* Score the strongest ordered-subsequence alignment in O(name × query).
+* Boundary and adjacent matches earn weight; skipped and leading characters
+* cost weight. Undefined when the query is not a subsequence of the name.
 */
+function alignmentScore(name, query) {
+	if (query.length > name.length) return void 0;
+	const noMatch = Number.NEGATIVE_INFINITY;
+	let previous = Array(name.length).fill(noMatch);
+	for (let index = 0; index < name.length; index++) if (name.charAt(index) === query.charAt(0)) previous[index] = 1 + boundaryBonus(name, index) - index;
+	for (let queryIndex = 1; queryIndex < query.length; queryIndex++) {
+		const current = Array(name.length).fill(noMatch);
+		let left = noMatch;
+		let leftLeft = noMatch;
+		let bestGapped = noMatch;
+		for (const [index, prior] of previous.entries()) {
+			if (leftLeft !== noMatch) bestGapped = Math.max(bestGapped, leftLeft + index - 2);
+			if (name.charAt(index) === query.charAt(queryIndex)) {
+				const bonus = 1 + boundaryBonus(name, index);
+				let score = noMatch;
+				if (left !== noMatch) score = left + bonus + 4;
+				if (bestGapped !== noMatch) score = Math.max(score, bestGapped + bonus + 1 - index);
+				current[index] = score;
+			}
+			leftLeft = left;
+			left = prior;
+		}
+		previous = current;
+	}
+	let best = noMatch;
+	for (const score of previous) best = Math.max(best, score);
+	return best === noMatch ? void 0 : best;
+}
+/**
+* Rank named items by a menu query.
+* @param items - candidates in source order; an item's optional `label` is a
+* second search key beside its name.
+* @param rawQuery - the typed query, matched case-insensitively.
+* @returns the matching items: prefix hits first, then by alignment score,
+* then in source order. The input list itself for an empty query.
+*/
+function rankByName(items, rawQuery) {
+	const query = rawQuery.toLowerCase();
+	if (query === "") return items;
+	const ranked = [];
+	items.forEach((item, index) => {
+		const keys = item.label === void 0 ? [item.name] : [item.name, item.label];
+		let prefix = false;
+		let score;
+		for (const key of keys) {
+			const lower = key.toLowerCase();
+			const keyScore = alignmentScore(lower, query);
+			if (keyScore === void 0) continue;
+			prefix ||= lower.startsWith(query);
+			score = score === void 0 ? keyScore : Math.max(score, keyScore);
+		}
+		if (score !== void 0) ranked.push({
+			item,
+			index,
+			prefix,
+			score
+		});
+	});
+	ranked.sort((left, right) => Number(right.prefix) - Number(left.prefix) || right.score - left.score || left.index - right.index);
+	return ranked.map((match) => match.item);
+}
+
+// src/client/commands.ts
 const FRESH_MS = 3e4;
 function commandSources(actions, harnessOf, t) {
 	const cache = /* @__PURE__ */ new Map();
@@ -284,7 +351,7 @@ function commandSources(actions, harnessOf, t) {
 					section: `${HARNESS_NAMES[harness]} · ${entry.kind === "skill" ? t("skills") : t("commands")}`,
 					...entry.argumentHint && request.position === "leading" ? { hint: entry.argumentHint } : {}
 				}));
-				return request.query ? (0, _deepseek_ai_dsh_client_ui_primitives.rankByName)(rows, request.query) : rows;
+				return request.query ? rankByName(rows, request.query) : rows;
 			},
 			onPick({ candidate }) {
 				return { text: `/${candidate.name} ` };
@@ -943,7 +1010,7 @@ function ModelMenu({ title, groups, current, defaultEffort = true, disabled, bus
 	}))), [groups]);
 	const sections = (0, react.useMemo)(() => groups.map((group) => ({
 		group,
-		rows: (0, _deepseek_ai_dsh_client_ui_primitives.rankByName)(rows.filter((row) => row.group === group.id), query.trim())
+		rows: rankByName(rows.filter((row) => row.group === group.id), query.trim())
 	})).filter((section) => section.rows.length > 0), [
 		groups,
 		rows,

@@ -3,13 +3,13 @@
  * harness, populated only in that harness's sessions. A pick inserts
  * `/token ` literally; the Host turns it into the harness's own invocation.
  */
-import { rankByName } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   ClientSessionContext,
   InputTriggerCandidate,
   InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { HARNESS_NAMES, type CommandEntry, type HarnessId } from '../shared/types.ts'
+import { rankByName } from './rank-by-name.ts'
 import type { Translate } from './locales.ts'
 import type { NativeActions } from './actions.ts'
 
