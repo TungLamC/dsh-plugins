@@ -1,5 +1,6 @@
 packages:
   - better-providers
+  - native-harness
   - web-access
 
 # Versions plugins develop and build against; plugin package.json files reference
@@ -35,15 +36,66 @@ catalog:
   pi-ai-1.1.0: npm:@earendil-works/pi-ai@1.1.0
   '@types/node': 22.20.5
   '@types/react': 18.3.31
+  '@types/react-dom': 18.3.7
   '@types/semver': 7.7.1
   es-module-lexer: 1.7.0
   lightningcss: 1.33.0
   react: 18.3.1
+  react-dom: 18.3.1
   semver: 7.8.5
   tsdown: 0.22.14
   typescript: 6.0.3
   vitest: 4.1.12
   zod: 4.6.7
+
+# Plugins that need a newer dsh than the default catalog's reference these as "catalog:dsh-0.2.2".
+# The build reads each plugin's dsh release from the catalog its dsh devDependencies name.
+catalogs:
+  dsh-0.2.2:
+    '@deepseek-ai/cordis': 4.1.0
+    '@deepseek-ai/cordis-plugin-loader': 1.1.0
+    '@deepseek-ai/schemastery': 3.19.0
+    '@deepseek-ai/dsh-agent': 0.2.2-rc.5
+    '@deepseek-ai/dsh-agent-loop': 0.2.2-rc.5
+    '@deepseek-ai/dsh-agent-preset': 0.2.2-rc.5
+    '@deepseek-ai/dsh-agent-preset-registry': 0.2.2-rc.5
+    '@deepseek-ai/dsh-api-remotes': 0.2.2-rc.5
+    '@deepseek-ai/dsh-api-session-controller': 0.2.2-rc.5
+    '@deepseek-ai/dsh-attachment': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-locale': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-store': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-conversation': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-input-trigger': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-model-selection': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-permission-presets': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-primitives': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-renderer': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-session': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-slots': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-tool': 0.2.2-rc.5
+    '@deepseek-ai/dsh-client-ui-workspace': 0.2.2-rc.5
+    '@deepseek-ai/dsh-credentials': 0.2.2-rc.5
+    '@deepseek-ai/dsh-llm': 0.2.2-rc.5
+    '@deepseek-ai/dsh-permission-presets': 0.2.2-rc.5
+    '@deepseek-ai/dsh-persona': 0.2.2-rc.5
+    '@deepseek-ai/dsh-scope': 0.2.2-rc.5
+    '@deepseek-ai/dsh-session': 0.2.2-rc.5
+    '@deepseek-ai/dsh-session-projection': 0.2.2-rc.5
+    '@deepseek-ai/dsh-session-query': 0.2.2-rc.5
+    '@deepseek-ai/dsh-storage': 0.2.2-rc.5
+    '@deepseek-ai/dsh-storage-domain': 0.2.2-rc.5
+    '@deepseek-ai/dsh-system-prompt': 0.2.2-rc.5
+    '@deepseek-ai/dsh-token-meter': 0.2.2-rc.5
+    '@deepseek-ai/dsh-tool-executor-native': 0.2.2-rc.5
+    '@deepseek-ai/dsh-tool-todo': 0.2.2-rc.5
+    '@deepseek-ai/dsh-tools': 0.2.2-rc.5
+    '@deepseek-ai/dsh-typert-protocol': 0.2.2-rc.5
+    '@deepseek-ai/dsh-typert-registry': 0.2.2-rc.5
+    '@deepseek-ai/dsh-user-approval': 0.2.2-rc.5
+    '@deepseek-ai/dsh-user-questions': 0.2.2-rc.5
+    '@deepseek-ai/dsh-working-directory': 0.2.2-rc.5
+    # The zod this dsh release pins; a second copy breaks the types of schemas passed to dsh.
+    zod: 4.6.6
 
 # Plugins may target different dsh releases (see catalogs), and dsh packages of two
 # releases must not resolve each other's copies. Each plugin gets its own lockfile and
@@ -59,3 +111,14 @@ minimumReleaseAgeExclude:
 allowBuilds:
   '@google/genai': false
   protobufjs: false
+
+# native-harness drives the locally installed `claude` CLI; the Agent SDK's bundled binaries are not needed.
+ignoredOptionalDependencies:
+  - '@anthropic-ai/claude-agent-sdk-linux-x64'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64-musl'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64-musl'
+  - '@anthropic-ai/claude-agent-sdk-darwin-x64'
+  - '@anthropic-ai/claude-agent-sdk-darwin-arm64'
+  - '@anthropic-ai/claude-agent-sdk-win32-x64'
+  - '@anthropic-ai/claude-agent-sdk-win32-arm64'

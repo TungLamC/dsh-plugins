@@ -1,0 +1,72 @@
+- insert:
+    - id: native-harness
+      name: dsh-native-harness
+    - id: preset-claude-code-native
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: claude-code-native
+        name: Claude Code
+        description: 'Run on the local Claude Code harness: its own tools, permissions, skills and sessions.'
+        order: 22
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: 'This conversation is executed by Claude Code. Its own instructions, tools and skills are authoritative.'
+              complete: true
+              includeRuntimeContext: false
+          - id: native-harness-preset
+            name: dsh-native-harness/preset
+            config:
+              harness: claude-code
+          # Shows the harness's own task list in dsh's todo dock; the harness never sees this tool.
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+    - id: preset-codex-native
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: codex-native
+        name: Codex
+        description: 'Run on the local Codex harness: its own tools, permissions, skills and sessions.'
+        order: 23
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: 'This conversation is executed by Codex. Its own instructions, tools and skills are authoritative.'
+              complete: true
+              includeRuntimeContext: false
+          - id: native-harness-preset
+            name: dsh-native-harness/preset
+            config:
+              harness: codex
+          # Shows the harness's own task list in dsh's todo dock; the harness never sees this tool.
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+    - id: preset-antigravity-native
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: antigravity-native
+        name: Antigravity
+        description: 'Run on the local Antigravity CLI (agy acp): its own tools, permissions, skills and conversations.'
+        order: 24
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: 'This conversation is executed by Antigravity. Its own instructions, tools and skills are authoritative.'
+              complete: true
+              includeRuntimeContext: false
+          - id: native-harness-preset
+            name: dsh-native-harness/preset
+            config:
+              harness: antigravity
+          # Shows a plan Antigravity reports through ACP in dsh's todo dock; the harness never sees this tool.
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true

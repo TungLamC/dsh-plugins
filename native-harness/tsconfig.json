@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.host.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib"
+  },
+  "include": ["src/host", "src/shared"]
+}

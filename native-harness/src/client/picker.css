@@ -1,0 +1,412 @@
+/* Geometry and tokens match dsh rc.5 ModelSelect (MIT). All classes are ours. */
+.nh-controls {
+  position: relative;
+  min-width: 0;
+}
+.nh-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+/* An endpoint switch that waits for the turn or for background tasks. */
+.nh-picker-pending {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-warn-primary);
+}
+.nh-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: min(360px, 45cqw);
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.nh-picker-trigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.nh-picker-trigger:focus-visible:not([data-selection-focus]) {
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+.nh-picker-trigger:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+.nh-picker-trigger-label,
+.nh-picker-trigger-effort {
+  display: var(--dsh-composer-model-text-display, block);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nh-picker-trigger-effort {
+  flex-shrink: 1000;
+  color: var(--dsw-alias-label-caption);
+}
+.nh-picker-chevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+.nh-picker-chevron.is-open {
+  transform: rotate(180deg);
+}
+/* Placement copies dsh's ModelSelect: CSS anchors keep the body-portaled card
+   above its trigger, right edges aligned, inside the window. */
+.nh-picker-menu {
+  box-sizing: border-box;
+  position: fixed;
+  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  left: 12px;
+  right: anchor(right);
+  bottom: calc(anchor(top) + 8px);
+  align-self: safe end;
+  justify-self: safe end;
+  margin: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  height: fit-content;
+  min-width: min(240px, calc(100vw - 24px));
+  max-width: min(560px, calc(100vw - 24px));
+  max-height: min(400px, calc(100dvh - 96px));
+  overflow: hidden;
+  padding: 4px;
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
+  color: var(--dsw-alias-label-primary);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+/* Models and efforts side by side; on a narrow window the efforts go below the models. */
+.nh-picker-columns {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 4px;
+}
+.nh-picker-models {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 280px;
+  min-height: 0;
+}
+.nh-picker-efforts {
+  flex: 0 0 140px;
+  padding-left: 4px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+@media (max-width: 520px) {
+  .nh-picker-columns {
+    flex-direction: column;
+  }
+  .nh-picker-models {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+  .nh-picker-efforts {
+    flex: 0 1 auto;
+    max-height: 40%;
+    padding: 4px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--dsw-alias-border-l2);
+  }
+}
+.nh-picker-footer {
+  flex: none;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.nh-picker-scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+.nh-picker-option {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 100%;
+  min-height: 34px;
+  padding: 5px 7px;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  outline: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.nh-picker-option > svg {
+  flex: none;
+}
+.nh-picker-option:not(.nh-picker-model-option):hover:not([aria-disabled]),
+.nh-picker-option:focus-visible,
+.nh-picker-model-option[data-highlighted]:not([aria-disabled]) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.nh-picker-option[aria-disabled] {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+.nh-picker-option[aria-disabled] .nh-picker-check {
+  color: inherit;
+}
+.nh-picker-option-icon svg,
+.nh-picker-trigger-icon svg {
+  display: block;
+}
+.nh-picker-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nh-picker-check {
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  color: var(--dsw-alias-label-primary);
+}
+.nh-picker-check svg {
+  width: 14px;
+  height: 14px;
+}
+.nh-picker-option-icon {
+  width: 16px;
+  height: 16px;
+}
+.nh-provider-image {
+  display: block;
+  object-fit: contain;
+}
+.nh-picker-search-row {
+  position: relative;
+  flex: none;
+  margin: 2px 0 3px;
+}
+.nh-picker-search-row .nh-picker-search {
+  display: flex;
+  height: auto;
+  padding: 5px 7px;
+  border: 0 solid transparent;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+}
+.nh-picker-search-row .nh-picker-search.has-query {
+  padding-right: 34px;
+}
+.nh-picker-search-row .nh-picker-search:focus-within {
+  border-color: transparent;
+}
+.nh-picker-search input {
+  padding: 0;
+  font-size: 12px;
+  line-height: normal;
+}
+.nh-picker-search input::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+.nh-picker-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+.nh-picker-search-clear:hover,
+.nh-picker-search-clear:focus-visible {
+  outline: none;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.nh-picker-status {
+  padding: 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.nh-picker-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 7px;
+  margin-bottom: 3px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 11px;
+  line-height: 16px;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.nh-picker-error button {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+/* Agent-team row and its confirmation follow dsh rc.5's TeamModeToggle and TeamDisableConfirmation. */
+.nh-team-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: var(--dsw-radius-md);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+.nh-team-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.nh-team-info {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--dsw-alias-label-caption);
+}
+/* The whole row is the switch's hit target, without nesting the information button. */
+.nh-team-row .nh-team-switch {
+  position: static;
+}
+.nh-team-switch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--dsw-radius-md);
+}
+.nh-team-row:has(.nh-team-switch:focus-visible) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+@media (hover: hover) {
+  .nh-team-row:has(.nh-team-switch:not(:disabled)):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+.nh-team-dialog {
+  width: min(440px, 100%);
+  max-height: 100%;
+}
+.nh-team-dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.nh-team-dialog-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.nh-team-dialog-copy p {
+  margin: 0;
+}
+.nh-team-dialog-copy p + p {
+  margin-top: 12px;
+}
+.nh-team-dialog-error {
+  color: var(--dsw-alias-state-error-primary);
+  overflow-wrap: anywhere;
+}
+/* Fast mode of a native Codex session, as better-providers draws its own: a bare
+   bolt, quiet while off, accent-coloured while on, pulled next to the model button. */
+.nh-fast {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: -8px;
+}
+.nh-fast-bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+.nh-fast-bolt:hover:not(:disabled) {
+  color: var(--dsw-alias-label-secondary);
+}
+.nh-fast-bolt:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
+}
+.nh-fast-bolt:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+.nh-fast-bolt.is-on,
+.nh-fast-bolt.is-on:hover:not(:disabled) {
+  color: var(--dsw-alias-state-business-primary);
+}
+/* While a change saves, the bolt keeps the state it asked for. */
+.nh-fast-bolt.is-on:disabled {
+  color: var(--dsw-alias-state-business-primary);
+  opacity: 0.6;
+}
+/* Above the bolt, so the toolbar does not shift. */
+.nh-fast-message {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.nh-fast-message.is-error {
+  color: var(--dsw-alias-state-error-primary);
+}

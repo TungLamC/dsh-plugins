@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Native Harness",
+    "description": "在本机 Claude Code 或 Codex 原生 harness 上运行会话。"
+  }
+}
