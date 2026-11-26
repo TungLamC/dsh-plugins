@@ -118,6 +118,7 @@
     "@deepseek-ai/dsh-client-ui-workspace": "catalog:dsh-0.2.2",
     "@deepseek-ai/dsh-credentials": "catalog:dsh-0.2.2",
     "@deepseek-ai/dsh-llm": "catalog:dsh-0.2.2",
+    "@deepseek-ai/dsh-llm-retry": "catalog:dsh-0.2.2",
     "@deepseek-ai/dsh-permission-presets": "catalog:dsh-0.2.2",
     "@deepseek-ai/dsh-persona": "catalog:dsh-0.2.2",
     "@deepseek-ai/dsh-scope": "catalog:dsh-0.2.2",

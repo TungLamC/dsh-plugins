@@ -15,11 +15,14 @@
 import { randomUUID } from 'node:crypto';
 import { Conversation } from "./conversation.js";
 import { composeInput, isForwardable, pendingInputs } from "./input.js";
+import { RetryCard } from "./retry.js";
 import { callIdOf, StepWriter, TODO_TOOL, todoArgs } from "./steps.js";
 const reasonOf = (origin) => (origin === 'user' ? 'queued' : 'native');
 export function createTurnBridge(deps) {
     const conversations = new Map();
     const opening = new Map();
+    /** The step each session's model call belongs to, from its latest `step/start`. */
+    const positions = new Map();
     async function conversation(agent, signal) {
         const current = conversations.get(agent.id);
         if (current && !current.conversation.closed)
@@ -96,6 +99,7 @@ export function createTurnBridge(deps) {
             conv.streaming = true;
             conv.cancelIdle();
             const step = new StepWriter();
+            const retries = new RetryCard(agent, options.provider, () => positions.get(agent.id), deps.log);
             try {
                 const fresh = pendingInputs(options.messages).filter((input) => !input.id || !conv.forwarded.has(input.id));
                 if (fresh.length) {
@@ -119,6 +123,10 @@ export function createTurnBridge(deps) {
                     const event = await conv.next(signal);
                     if (event.type === 'notice')
                         yield* step.text(`notice:${randomUUID()}`, 'text', `${event.text}\n\n`);
+                    else if (event.type === 'retry')
+                        retries.scheduled(event.retry);
+                    else if (event.type === 'call-start')
+                        retries.answered();
                     else if (event.type === 'delta')
                         yield* step.text(`${event.call}:${event.key}`, event.block, event.text);
                     // dsh's todo tool keeps the list; the preset mounts it and it executes at once.
@@ -171,6 +179,7 @@ export function createTurnBridge(deps) {
                 throw error;
             }
             finally {
+                retries.close();
                 conv.streaming = false;
                 // Covers cancels before any native turn began, which never produce a turn-end.
                 if (!conv.turnActive && !conv.consuming)
@@ -224,6 +233,8 @@ export function createTurnBridge(deps) {
                 .finally(untrack);
         },
         sessionEvent(sessionId, event) {
+            if (event.type === 'step/start')
+                positions.set(sessionId, { turn: event.data.turn, step: event.data.step });
             const entry = conversations.get(sessionId);
             const conv = entry?.conversation;
             if (!entry || !conv?.pendingCut)
@@ -246,6 +257,7 @@ export function createTurnBridge(deps) {
             if (entry)
                 void entry.conversation.interrupt();
             conversations.delete(sessionId);
+            positions.delete(sessionId);
             await deps.closeSession(sessionId);
         },
     };

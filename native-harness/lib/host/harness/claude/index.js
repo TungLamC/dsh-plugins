@@ -9,6 +9,8 @@ import { count, list, object, text } from "../../../shared/types.js";
 import { Channel } from "../channel.js";
 import { childEnvironment } from "../codex/rpc.js";
 import { activityOf, outcomeOf } from "./activity.js";
+import { overrideNotice, settingsFiles, upstreamOverrides } from "./overrides.js";
+import { retryCause, retryOf, retrySummary } from "./retry.js";
 import { ClaudeTaskTracker, ClaudeTasks } from "./tasks.js";
 const MODES = [
     { id: 'default', name: 'Ask', description: 'Ask before edits and commands.' },
@@ -44,15 +46,19 @@ const OWN_UPSTREAM = {
  * With no endpoint, `NATIVE_HARNESS_ANTHROPIC_*` replace it when any is set.
  */
 export async function claudeEnvironment(config, sessionId, endpoint) {
+    return (await environment(config, sessionId, endpoint)).env;
+}
+/** The process environment, and the upstream variables native-harness put in it; no `upstream` when the host's is kept. */
+async function environment(config, sessionId, endpoint) {
     const env = childEnvironment(sessionId);
     if (config.entrypoint)
         env.CLAUDE_CODE_ENTRYPOINT = config.entrypoint;
     const upstream = endpoint ? await endpointVariables(config, endpoint) : await ownUpstream(config);
     if (!upstream)
-        return env;
+        return { env };
     for (const key of UPSTREAM_KEYS)
         delete env[key];
-    return Object.assign(env, upstream);
+    return { env: Object.assign(env, upstream), upstream };
 }
 async function endpointVariables(config, endpoint) {
     const variables = {};
@@ -102,12 +108,8 @@ export function startOptions(ref, origin, uuid) {
     return own;
 }
 async function baseOptions(config, cwd, sessionId, endpoint) {
-    return {
-        cwd,
-        pathToClaudeCodeExecutable: config.command,
-        env: await claudeEnvironment(config, sessionId, endpoint),
-        includePartialMessages: true,
-    };
+    const { env, upstream } = await environment(config, sessionId, endpoint);
+    return { options: { cwd, pathToClaudeCodeExecutable: config.command, env, includePartialMessages: true }, ...(upstream ? { upstream } : {}) };
 }
 /** The `default` alias is listed only when no other entry names the model it resolves to. */
 export function catalogOf(init) {
@@ -155,6 +157,8 @@ export class ClaudeHarness {
     windows = new Map();
     probing = false;
     probed = false;
+    /** Per dsh session, the settings override last reported, so a process restart does not repeat it. */
+    overrides = new Map();
     constructor(config) {
         this.config = config;
     }
@@ -162,7 +166,7 @@ export class ClaudeHarness {
         return this.windows.get(model);
     }
     async catalog(cwd, signal) {
-        const base = await baseOptions(this.config, cwd, 'catalog', endpointOf(this.config, this.config.catalogEndpoint));
+        const { options: base } = await baseOptions(this.config, cwd, 'catalog', endpointOf(this.config, this.config.catalogEndpoint));
         signal.throwIfAborted();
         const input = new Channel();
         const abortController = new AbortController();
@@ -218,7 +222,14 @@ export class ClaudeHarness {
         return true;
     }
     async open(request, ports) {
-        const session = new ClaudeSession(this.config, request, ports, () => this.sessions.delete(session));
+        const session = new ClaudeSession(this.config, request, ports, () => this.sessions.delete(session), (found) => {
+            const before = this.overrides.get(request.dshSessionId) ?? '';
+            if (found)
+                this.overrides.set(request.dshSessionId, found);
+            else
+                this.overrides.delete(request.dshSessionId);
+            return found !== '' && found !== before;
+        });
         this.sessions.add(session);
         return session;
     }
@@ -245,6 +256,8 @@ class ClaudeSession {
     call;
     heldEnd;
     lastAssistant;
+    /** Retries of the model request in flight, for the error if the turn fails before a response comes. */
+    retrying;
     /** Steers the CLI has queued but not consumed, by message uuid; they run as the next turn if the current one ends first. */
     queuedSteers = new Map();
     toolBlocks = new Map();
@@ -265,11 +278,14 @@ class ClaudeSession {
     request;
     ports;
     forget;
-    constructor(config, request, ports, forget) {
+    /** Records the settings override found at this start ('' for none); true when it is new for the dsh session. */
+    overridden;
+    constructor(config, request, ports, forget, overridden = () => false) {
         this.config = config;
         this.request = request;
         this.ports = ports;
         this.forget = forget;
+        this.overridden = overridden;
         this.settings = { ...request.settings };
         this.lastEndpoint = request.lastEndpoint;
         if (request.origin.kind === 'resume')
@@ -418,11 +434,15 @@ class ClaudeSession {
             if (this.closed)
                 throw new Error('Claude Code session is closed');
         } while (endpointOf(this.config, this.settings.endpoint) !== endpoint);
+        if (base.upstream)
+            await this.checkOverrides(base.options.env ?? {}, base.upstream);
+        if (this.closed)
+            throw new Error('Claude Code session is closed');
         const input = new Channel();
         const uuid = uuidOf(this.request.dshSessionId);
         this.bypassAllowed = this.settings.mode === 'bypassPermissions';
         const options = {
-            ...base,
+            ...base.options,
             ...(this.settings.model ? { model: this.settings.model } : {}),
             ...(this.settings.effort ? { effort: this.settings.effort } : {}),
             ...(this.settings.mode ? { permissionMode: this.settings.mode } : {}),
@@ -445,6 +465,21 @@ class ClaudeSession {
             this.started(endpoint);
         void this.read(q, ++this.generation);
         return input;
+    }
+    /** Claude retries a failed model request: show it, and keep it for the error if the turn then fails. */
+    retried(frame) {
+        this.ensureTurn();
+        const retry = retryOf(frame);
+        this.retrying = { retries: retry.attempt, since: this.retrying?.since ?? Date.now(), last: retryCause(frame) };
+        this.push({ type: 'retry', retry });
+    }
+    /** Settings files replacing the upstream this process is given: say so once per dsh session, before the reply. */
+    async checkOverrides(env, upstream) {
+        const found = await upstreamOverrides(settingsFiles(this.request.cwd, env), UPSTREAM_KEYS, upstream);
+        if (!this.overridden(found.length ? JSON.stringify(found) : ''))
+            return;
+        this.ports.log(`Claude Code settings override the upstream: ${found.map((o) => `${o.path} (${o.keys.join(', ')})`).join('; ')}`);
+        this.push({ type: 'notice', text: overrideNotice(found) });
     }
     /** Report the endpoint once per change, and say so in the conversation when it replaces an earlier one. */
     started(endpoint) {
@@ -539,6 +574,10 @@ class ClaudeSession {
         this.push(held.type === 'call-end' && window ? { ...held, contextWindow: window } : held);
     }
     endTurn(outcome, error, window) {
+        const retrying = this.retrying;
+        this.retrying = undefined;
+        if (outcome === 'failed' && retrying)
+            error = [error, retrySummary(retrying.retries, Date.now() - retrying.since, retrying.last)].filter(Boolean).join('\n');
         this.closeCall(true);
         this.flushHeld(window);
         for (const id of this.startedTools)
@@ -561,6 +600,10 @@ class ClaudeSession {
         const top = value.parent_tool_use_id === null || value.parent_tool_use_id === undefined;
         switch (value.type) {
             case 'system':
+                if (value.subtype === 'api_retry') {
+                    this.retried(value);
+                    return;
+                }
                 if (TASK_FRAMES.has(text(value.subtype))) {
                     this.work.accept(value);
                     if (this.restartPending)
@@ -643,6 +686,8 @@ class ClaudeSession {
         switch (event.type) {
             case 'message_start': {
                 this.ensureTurn();
+                // A response came back: the request's retries are over.
+                this.retrying = undefined;
                 const message = object(event.message);
                 this.openCall(text(message.id) || `call-${Date.now()}`, object(message.usage));
                 return;

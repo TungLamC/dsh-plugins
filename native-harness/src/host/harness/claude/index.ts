@@ -27,6 +27,8 @@ import type {
   SettingsChange,
 } from '../types.ts'
 import { activityOf, outcomeOf } from './activity.ts'
+import { overrideNotice, settingsFiles, upstreamOverrides } from './overrides.ts'
+import { retryCause, retryOf, retrySummary, type RetryCause } from './retry.ts'
 import { ClaudeTaskTracker, ClaudeTasks } from './tasks.ts'
 
 export interface ClaudeConfig {
@@ -78,12 +80,21 @@ const OWN_UPSTREAM = {
  * With no endpoint, `NATIVE_HARNESS_ANTHROPIC_*` replace it when any is set.
  */
 export async function claudeEnvironment(config: ClaudeConfig, sessionId: string, endpoint?: ClaudeEndpoint): Promise<NodeJS.ProcessEnv> {
+  return (await environment(config, sessionId, endpoint)).env
+}
+
+/** The process environment, and the upstream variables native-harness put in it; no `upstream` when the host's is kept. */
+async function environment(
+  config: ClaudeConfig,
+  sessionId: string,
+  endpoint?: ClaudeEndpoint,
+): Promise<{ env: NodeJS.ProcessEnv; upstream?: Record<string, string> }> {
   const env = childEnvironment(sessionId)
   if (config.entrypoint) env.CLAUDE_CODE_ENTRYPOINT = config.entrypoint
   const upstream = endpoint ? await endpointVariables(config, endpoint) : await ownUpstream(config)
-  if (!upstream) return env
+  if (!upstream) return { env }
   for (const key of UPSTREAM_KEYS) delete env[key]
-  return Object.assign(env, upstream)
+  return { env: Object.assign(env, upstream), upstream }
 }
 
 async function endpointVariables(config: ClaudeConfig, endpoint: ClaudeEndpoint): Promise<Record<string, string>> {
@@ -136,13 +147,14 @@ export function startOptions(ref: NativeRef | undefined, origin: OpenOrigin, uui
   return own
 }
 
-async function baseOptions(config: ClaudeConfig, cwd: string, sessionId: string, endpoint?: ClaudeEndpoint): Promise<Options> {
-  return {
-    cwd,
-    pathToClaudeCodeExecutable: config.command,
-    env: await claudeEnvironment(config, sessionId, endpoint),
-    includePartialMessages: true,
-  }
+async function baseOptions(
+  config: ClaudeConfig,
+  cwd: string,
+  sessionId: string,
+  endpoint?: ClaudeEndpoint,
+): Promise<{ options: Options; upstream?: Record<string, string> }> {
+  const { env, upstream } = await environment(config, sessionId, endpoint)
+  return { options: { cwd, pathToClaudeCodeExecutable: config.command, env, includePartialMessages: true }, ...(upstream ? { upstream } : {}) }
 }
 
 /** The `default` alias is listed only when no other entry names the model it resolves to. */
@@ -191,6 +203,8 @@ export class ClaudeHarness implements Harness {
   private readonly windows = new Map<string, number>()
   private probing = false
   private probed = false
+  /** Per dsh session, the settings override last reported, so a process restart does not repeat it. */
+  private readonly overrides = new Map<string, string>()
   constructor(config: ClaudeConfig) {
     this.config = config
   }
@@ -200,7 +214,7 @@ export class ClaudeHarness implements Harness {
   }
 
   async catalog(cwd: string, signal: AbortSignal): Promise<HarnessCatalog> {
-    const base = await baseOptions(this.config, cwd, 'catalog', endpointOf(this.config, this.config.catalogEndpoint))
+    const { options: base } = await baseOptions(this.config, cwd, 'catalog', endpointOf(this.config, this.config.catalogEndpoint))
     signal.throwIfAborted()
     const input = new Channel<SDKUserMessage>()
     const abortController = new AbortController()
@@ -253,7 +267,12 @@ export class ClaudeHarness implements Harness {
   }
 
   async open(request: OpenRequest, ports: SessionPorts): Promise<NativeSession> {
-    const session = new ClaudeSession(this.config, request, ports, () => this.sessions.delete(session))
+    const session = new ClaudeSession(this.config, request, ports, () => this.sessions.delete(session), (found) => {
+      const before = this.overrides.get(request.dshSessionId) ?? ''
+      if (found) this.overrides.set(request.dshSessionId, found)
+      else this.overrides.delete(request.dshSessionId)
+      return found !== '' && found !== before
+    })
     this.sessions.add(session)
     return session
   }
@@ -288,6 +307,8 @@ class ClaudeSession implements NativeSession {
   private call?: OpenCall
   private heldEnd?: NativeEvent
   private lastAssistant?: string
+  /** Retries of the model request in flight, for the error if the turn fails before a response comes. */
+  private retrying?: { retries: number; since: number; last: RetryCause }
   /** Steers the CLI has queued but not consumed, by message uuid; they run as the next turn if the current one ends first. */
   private queuedSteers = new Map<string, string>()
   private readonly toolBlocks = new Map<number, { id: string; name: string; json: string; input: unknown }>()
@@ -308,12 +329,21 @@ class ClaudeSession implements NativeSession {
   private readonly request: OpenRequest
   private readonly ports: SessionPorts
   private readonly forget: () => void
+  /** Records the settings override found at this start ('' for none); true when it is new for the dsh session. */
+  private readonly overridden: (found: string) => boolean
 
-  constructor(config: ClaudeConfig, request: OpenRequest, ports: SessionPorts, forget: () => void) {
+  constructor(
+    config: ClaudeConfig,
+    request: OpenRequest,
+    ports: SessionPorts,
+    forget: () => void,
+    overridden: (found: string) => boolean = () => false,
+  ) {
     this.config = config
     this.request = request
     this.ports = ports
     this.forget = forget
+    this.overridden = overridden
     this.settings = { ...request.settings }
     this.lastEndpoint = request.lastEndpoint
     if (request.origin.kind === 'resume') this.ref = request.origin.ref
@@ -448,18 +478,20 @@ class ClaudeSession implements NativeSession {
 
   private async launch(): Promise<Channel<SDKUserMessage>> {
     let endpoint: ClaudeEndpoint | undefined
-    let base: Options
+    let base: Awaited<ReturnType<typeof baseOptions>>
     // An endpoint switch while the variables resolve starts on the new endpoint.
     do {
       endpoint = endpointOf(this.config, this.settings.endpoint)
       base = await baseOptions(this.config, this.request.cwd, this.request.dshSessionId, endpoint)
       if (this.closed) throw new Error('Claude Code session is closed')
     } while (endpointOf(this.config, this.settings.endpoint) !== endpoint)
+    if (base.upstream) await this.checkOverrides(base.options.env ?? {}, base.upstream)
+    if (this.closed) throw new Error('Claude Code session is closed')
     const input = new Channel<SDKUserMessage>()
     const uuid = uuidOf(this.request.dshSessionId)
     this.bypassAllowed = this.settings.mode === 'bypassPermissions'
     const options: Options = {
-      ...base,
+      ...base.options,
       ...(this.settings.model ? { model: this.settings.model } : {}),
       ...(this.settings.effort ? { effort: this.settings.effort as never } : {}),
       ...(this.settings.mode ? { permissionMode: this.settings.mode as PermissionMode } : {}),
@@ -480,6 +512,22 @@ class ClaudeSession implements NativeSession {
     if (endpoint) this.started(endpoint)
     void this.read(q, ++this.generation)
     return input
+  }
+
+  /** Claude retries a failed model request: show it, and keep it for the error if the turn then fails. */
+  private retried(frame: Record<string, unknown>): void {
+    this.ensureTurn()
+    const retry = retryOf(frame)
+    this.retrying = { retries: retry.attempt, since: this.retrying?.since ?? Date.now(), last: retryCause(frame) }
+    this.push({ type: 'retry', retry })
+  }
+
+  /** Settings files replacing the upstream this process is given: say so once per dsh session, before the reply. */
+  private async checkOverrides(env: NodeJS.ProcessEnv, upstream: Record<string, string>): Promise<void> {
+    const found = await upstreamOverrides(settingsFiles(this.request.cwd, env), UPSTREAM_KEYS, upstream)
+    if (!this.overridden(found.length ? JSON.stringify(found) : '')) return
+    this.ports.log(`Claude Code settings override the upstream: ${found.map((o) => `${o.path} (${o.keys.join(', ')})`).join('; ')}`)
+    this.push({ type: 'notice', text: overrideNotice(found) })
   }
 
   /** Report the endpoint once per change, and say so in the conversation when it replaces an earlier one. */
@@ -571,6 +619,10 @@ class ClaudeSession implements NativeSession {
   }
 
   private endTurn(outcome: 'completed' | 'interrupted' | 'failed', error?: string, window?: number): void {
+    const retrying = this.retrying
+    this.retrying = undefined
+    if (outcome === 'failed' && retrying)
+      error = [error, retrySummary(retrying.retries, Date.now() - retrying.since, retrying.last)].filter(Boolean).join('\n')
     this.closeCall(true)
     this.flushHeld(window)
     for (const id of this.startedTools) this.push({ type: 'tool-end', tool: id, outcome: { status: outcome === 'interrupted' ? 'interrupted' : 'unknown' } })
@@ -592,6 +644,10 @@ class ClaudeSession implements NativeSession {
     const top = value.parent_tool_use_id === null || value.parent_tool_use_id === undefined
     switch (value.type) {
       case 'system':
+        if (value.subtype === 'api_retry') {
+          this.retried(value)
+          return
+        }
         if (TASK_FRAMES.has(text(value.subtype))) {
           this.work.accept(value)
           if (this.restartPending) this.restartIfIdle()
@@ -666,6 +722,8 @@ class ClaudeSession implements NativeSession {
     switch (event.type) {
       case 'message_start': {
         this.ensureTurn()
+        // A response came back: the request's retries are over.
+        this.retrying = undefined
         const message = object(event.message)
         this.openCall(text(message.id) || `call-${Date.now()}`, object(message.usage))
         return

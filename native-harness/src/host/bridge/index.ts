@@ -23,6 +23,7 @@ import type { NativeCut, NativeImage, NativeRef } from '../harness/types.ts'
 import type { OpenedSession } from '../runtime.ts'
 import { Conversation } from './conversation.ts'
 import { composeInput, isForwardable, pendingInputs, type PendingInput } from './input.ts'
+import { RetryCard, type StepPosition } from './retry.ts'
 import { callIdOf, StepWriter, TODO_TOOL, todoArgs } from './steps.ts'
 
 export interface BridgeDeps {
@@ -67,6 +68,8 @@ export interface TurnBridge {
 export function createTurnBridge(deps: BridgeDeps): TurnBridge {
   const conversations = new Map<string, { harness: HarnessId; conversation: Conversation }>()
   const opening = new Map<string, Promise<{ harness: HarnessId; conversation: Conversation }>>()
+  /** The step each session's model call belongs to, from its latest `step/start`. */
+  const positions = new Map<string, StepPosition>()
 
   async function conversation(agent: Agent, signal: AbortSignal) {
     const current = conversations.get(agent.id)
@@ -142,6 +145,7 @@ export function createTurnBridge(deps: BridgeDeps): TurnBridge {
       conv.streaming = true
       conv.cancelIdle()
       const step = new StepWriter()
+      const retries = new RetryCard(agent, options.provider, () => positions.get(agent.id), deps.log)
       try {
         const fresh = pendingInputs(options.messages).filter((input) => !input.id || !conv.forwarded.has(input.id))
         if (fresh.length) {
@@ -162,6 +166,8 @@ export function createTurnBridge(deps: BridgeDeps): TurnBridge {
         while (true) {
           const event = await conv.next(signal)
           if (event.type === 'notice') yield* step.text(`notice:${randomUUID()}`, 'text', `${event.text}\n\n`)
+          else if (event.type === 'retry') retries.scheduled(event.retry)
+          else if (event.type === 'call-start') retries.answered()
           else if (event.type === 'delta') yield* step.text(`${event.call}:${event.key}`, event.block, event.text)
           // dsh's todo tool keeps the list; the preset mounts it and it executes at once.
           else if (event.type === 'todos') yield* step.tool(callIdOf(event.id), todoArgs(event.todos), TODO_TOOL)
@@ -207,6 +213,7 @@ export function createTurnBridge(deps: BridgeDeps): TurnBridge {
         if (signal.aborted) void conv.interrupt()
         throw error
       } finally {
+        retries.close()
         conv.streaming = false
         // Covers cancels before any native turn began, which never produce a turn-end.
         if (!conv.turnActive && !conv.consuming) conv.scheduleIdle(deps.idleMs, () => void deps.closeSession(agent.id))
@@ -252,6 +259,7 @@ export function createTurnBridge(deps: BridgeDeps): TurnBridge {
     },
 
     sessionEvent(sessionId, event) {
+      if (event.type === 'step/start') positions.set(sessionId, { turn: event.data.turn, step: event.data.step })
       const entry = conversations.get(sessionId)
       const conv = entry?.conversation
       if (!entry || !conv?.pendingCut) return
@@ -273,6 +281,7 @@ export function createTurnBridge(deps: BridgeDeps): TurnBridge {
       const entry = conversations.get(sessionId)
       if (entry) void entry.conversation.interrupt()
       conversations.delete(sessionId)
+      positions.delete(sessionId)
       await deps.closeSession(sessionId)
     },
   }

@@ -58,6 +58,7 @@
   - 还有后台任务在跑时不做空闲回收，等它们结束后再计时。
   - 看不到子代理的完整对话，也不能单独给子代理插话。
 - **工具展示**：原生的每次工具调用显示为一张卡片，按原生顺序和正文交错。shell 显示终端输出，编辑显示 diff。
+- **请求重试（Claude）**：Claude Code 的模型请求失败后会退避重试（默认最多 10 次，可能持续几分钟）。这期间对话里显示 dsh 自带的重试卡片，和 dsh 自己的模型重试一样："正在重试模型请求（2/10） · 5s"，展开能看到每次失败的原因，比如"连接出错，没有收到 HTTP 响应""HTTP 529（服务过载）"。同一个请求的重试在一张卡片上更新；请求恢复后卡片停在"已重试"，停止轮次时还在等待的那次显示"已取消"。重试用完、这一轮失败时，报错后面写着一共重试了几次、用了多久、最后一次的原因。
 - **任务清单**：harness 维护的任务清单显示在 dsh 的 Todo 栏，对话里是 dsh 的待办卡片。
   - 来源是 Claude 的 TodoWrite / TaskCreate / TaskUpdate 和 Codex 的计划更新。
   - Claude Code 2.1.303 在 Opus 5.x 下默认不提供这些工具（TUI 里也一样），Codex 0.166 配 GPT-6-Astra 也没有 `update_plan`，所以用这些模型时一般不会出现。
@@ -169,6 +170,8 @@ dsh plugin --profile <profile> add 'github:TungLamC/dsh-plugins#<tag>&path:/nati
 - 模型目录和上下文窗口的探测进程同样按这三个变量连接。
 - 配了 `claudeEndpoints` 时完全按所选端点的 `env`，不读这三个变量。
 
+不管哪种方式，Claude Code 的 settings 文件里 `env` 设的上游都会盖掉插件传入的，见"已知限制"。
+
 `providerIcons` 的 key 是 provider id，也就是 `llm-pi-ai` 配置里 `providers:` 下面的名字；值是下面三种之一：
 
 - 插件自带的图标名：`anthropic`、`antigravity`、`azure`、`baseten`、`bedrock`、`cerebras`、`claude`、`cloudflare`、`deepseek`、`doubao`、`fireworks`、`gemini`、`githubcopilot`、`google`、`groq`、`huggingface`、`kimi`、`ling`、`meta`、`minimax`、`mistral`、`moonshot`、`nvidia`、`openai`、`opencode`、`openrouter`、`qwen`、`together`、`vercel`、`vertexai`、`volcengine`、`xai`、`xiaomimimo`、`zai`、`zhipu`。写了不在这里的名字，加载配置时会报错并列出可用的名字。
@@ -198,6 +201,11 @@ pnpm test          # 库级测试：Fake harness + 安装版 dsh agent-loop / to
 
 ## 已知限制
 
+- Claude Code 用 settings 文件里 `env` 的值覆盖进程的环境变量，插件传入的上游（端点的 `env`，或 `NATIVE_HARNESS_ANTHROPIC_*`）也会被盖掉。这是 Claude Code 的设计，插件不改它。
+  - 会生效的文件有三个，优先级从低到高：`~/.claude/settings.json`（设了 `CLAUDE_CONFIG_DIR` 时是那个目录下的），会话目录下的 `.claude/settings.json`、`.claude/settings.local.json`。上级目录和 git 根目录下的不算（Claude Code 2.1.328 实测）。
+  - 这些文件的 `env` 里只要有 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_API_KEY`，Claude 进程实际连的就是文件里的上游。那个上游失效时，会话会一直重试（对话里显示重试卡片），最后报错。
+  - 插件自己提供上游时，每次启动 Claude 进程都检查这三个文件；有变量和插件传入的值不同，就在对话开头提示一次，写明是哪个文件的哪个变量，不显示值。同一个 dsh 会话里同样的情况不重复提示。
+  - 处理：把这些变量从文件里删掉。终端里还想用自己的上游，就把它挪到 shell 的环境变量里：插件启动 Claude 时会先去掉继承来的 `ANTHROPIC_*`，换成自己的值，终端里的 `claude` 照样读 shell 里的值。
 - dsh 全局的 `/model`（客户端贡献）和 `/permission` 仍会出现在 `/` 菜单里。harness 会话请用 composer 按钮。
   - 在 harness 会话里用 `/model` 不会换掉原生模型，插件会马上把会话改回原生路由；dsh 仍会把选中的模型存为全局默认。
   - 如果 `/model` 和发送恰好挤在同一时刻，那一步会报错"不能从 dsh 切换模型"，不会发给别的模型，这条消息需要重发。

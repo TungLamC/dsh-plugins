@@ -163,6 +163,8 @@ export type NativeEvent =
   | { type: 'mode'; mode: string }
   | { type: 'todos'; id: string; todos: NativeTodo[] }
   | { type: 'notice'; text: string }
+  /** A failed model request the native harness retries after `retry.delayMs`. */
+  | { type: 'retry'; retry: NativeRetry }
   | { type: 'endpoint'; endpoint: string }
   | {
       type: 'turn-end'
@@ -171,6 +173,19 @@ export type NativeEvent =
       cut?: NativeCut
       error?: string
     }
+
+export interface NativeRetry {
+  /** Which retry this is (from 1) and the most the request gets. */
+  attempt: number
+  maxRetries: number
+  delayMs: number
+  /** HTTP status of the failed attempt; absent when no response came back. */
+  status?: number
+  /** dsh's provider-neutral failure code: `TRANSPORT`, `TIMEOUT`, `RATE_LIMIT`, `SERVER`, `AUTH`, `HTTP_<status>` and the like. */
+  code: string
+  /** Why the attempt failed, in English and Chinese. */
+  reason: string
+}
 
 export interface NativeTodo {
   content: string
