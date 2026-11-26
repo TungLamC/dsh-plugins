@@ -31,14 +31,51 @@ export function readManifest(dir: string): Manifest {
 }
 
 /**
- * The dsh release the workspace builds against: the catalog pin of `@deepseek-ai/dsh-llm`.
- * @param root - the workspace root.
+ * The catalog a plugin takes its dsh packages from: the name in `catalog:<name>`
+ * of its `@deepseek-ai/dsh*` devDependencies, or undefined for the default catalog.
+ * @throws when the plugin's dsh devDependencies name more than one catalog.
  */
-export function catalogDshVersion(root: string): string {
+export function dshCatalog(manifest: Manifest): string | undefined {
+  const names = new Set<string>()
+  for (const [name, range] of Object.entries(manifest.devDependencies ?? {})) {
+    if (name.startsWith('@deepseek-ai/dsh') && range.startsWith('catalog:')) names.add(range.slice('catalog:'.length))
+  }
+  if (names.size > 1) throw new Error(`${manifest.name}: dsh devDependencies come from several catalogs (${[...names].map(name => name || 'default').join(', ')})`)
+  const [name] = names
+  return name === undefined || name === '' || name === 'default' ? undefined : name
+}
+
+/** The lines of one catalog in pnpm-workspace.yaml: the default `catalog:` or a named one under `catalogs:`. */
+function catalogLines(yaml: string, catalog: string | undefined): string[] {
+  const lines = yaml.split('\n')
+  const indent = (line: string): number => line.length - line.trimStart().length
+  const body = (start: number, depth: number): string[] => {
+    const end = lines.findIndex((line, index) => index > start && line.trim() !== '' && !line.trimStart().startsWith('#') && indent(line) <= depth)
+    return lines.slice(start + 1, end === -1 ? undefined : end)
+  }
+  if (catalog === undefined) {
+    const start = lines.indexOf('catalog:')
+    return start === -1 ? [] : body(start, 0)
+  }
+  const section = lines.indexOf('catalogs:')
+  if (section === -1) return []
+  const named = body(section, 0)
+  const start = named.findIndex(line => indent(line) === 2 && [`${catalog}:`, `'${catalog}':`, `"${catalog}":`].includes(line.trim()))
+  return start === -1 ? [] : body(section + 1 + start, 2)
+}
+
+/**
+ * The dsh release a catalog stands for: its pin of `@deepseek-ai/dsh-llm`.
+ * @param root - the workspace root.
+ * @param catalog - a named catalog; the default catalog when omitted.
+ */
+export function catalogDshVersion(root: string, catalog?: string): string {
   const yaml = readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')
-  const match = /^\s+'@deepseek-ai\/dsh-llm':\s*(\S+)\s*$/m.exec(yaml)
-  if (match?.[1] === undefined) throw new Error('pnpm-workspace.yaml: no catalog pin for @deepseek-ai/dsh-llm')
-  return match[1]
+  for (const line of catalogLines(yaml, catalog)) {
+    const match = /^\s+'@deepseek-ai\/dsh-llm':\s*(\S+)\s*$/.exec(line)
+    if (match?.[1] !== undefined) return match[1]
+  }
+  throw new Error(`pnpm-workspace.yaml: no pin for @deepseek-ai/dsh-llm in ${catalog === undefined ? 'the default catalog' : `catalog "${catalog}"`}`)
 }
 
 /** Whether a `files` pattern list covers a package-relative path. */
@@ -56,7 +93,7 @@ function covered(files: readonly string[], path: string): boolean {
 /**
  * Check a plugin manifest.
  * @param manifest - the parsed package.json.
- * @param dshVersion - the dsh release the workspace builds against.
+ * @param dshVersion - the dsh release the plugin is built against.
  * @returns every violation found; empty when the manifest is fine.
  */
 export function checkManifest(manifest: Manifest, dshVersion: string): string[] {

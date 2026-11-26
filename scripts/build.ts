@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildClient, clientExternals } from './build/client.ts'
 import { checkClientBundle, checkHostImports } from './build/checks.ts'
-import { catalogDshVersion, checkManifest, readManifest } from './build/manifest.ts'
+import { catalogDshVersion, checkManifest, dshCatalog, readManifest } from './build/manifest.ts'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TSC = createRequire(import.meta.url).resolve('typescript/bin/tsc')
@@ -38,10 +38,11 @@ function plugins(): string[] {
     .filter(name => existsSync(join(ROOT, name, 'package.json')) && readManifest(join(ROOT, name)).dsh?.bundle !== undefined)
 }
 
-async function run(plugin: string, check: boolean, dshVersion: string): Promise<void> {
+async function run(plugin: string, check: boolean): Promise<void> {
   const dir = join(ROOT, plugin)
   const manifest = readManifest(dir)
-  fail(plugin, checkManifest(manifest, dshVersion))
+  // The dsh release a plugin is built for is the one its catalog pins.
+  fail(plugin, checkManifest(manifest, catalogDshVersion(ROOT, dshCatalog(manifest))))
 
   if (!check) rmSync(join(dir, 'lib'), { recursive: true, force: true })
   tsc(join(dir, 'tsconfig.json'), check)
@@ -60,10 +61,9 @@ async function run(plugin: string, check: boolean, dshVersion: string): Promise<
 const args = process.argv.slice(2)
 const check = args.includes('--check')
 const named = args.filter(arg => !arg.startsWith('--'))
-const dshVersion = catalogDshVersion(ROOT)
 try {
   if (check) tsc(join(ROOT, 'tsconfig.scripts.json'), true)
-  for (const plugin of named.length > 0 ? named : plugins()) await run(plugin, check, dshVersion)
+  for (const plugin of named.length > 0 ? named : plugins()) await run(plugin, check)
 } catch (error) {
   console.error(error instanceof Error ? error.message : error)
   process.exitCode = 1

@@ -45,6 +45,11 @@ catalog:
   vitest: 4.1.12
   zod: 4.6.7
 
+# Plugins may target different dsh releases (see catalogs), and dsh packages of two
+# releases must not resolve each other's copies. Each plugin gets its own lockfile and
+# node_modules; the root keeps the build and test tools.
+sharedWorkspaceLockfile: false
+
 # pnpm holds back versions younger than a day; dsh release candidates are
 # consumed as soon as they are published.
 minimumReleaseAgeExclude:

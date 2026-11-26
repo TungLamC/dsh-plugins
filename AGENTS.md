@@ -6,6 +6,11 @@ DeepSeek Harness（dsh）插件集合，每个插件一个顶层目录。
 
 每个插件目录自成一体：有自己的 `package.json` 和 README，只 import 本目录内的文件和声明过的依赖，单独拿出去也能运行。dsh 提供的包（`@deepseek-ai/cordis` 等）写成 `peerDependencies`，由使用方的 profile 提供。
 
+## 依赖版本
+
+- 开发依赖从 `pnpm-workspace.yaml` 的 catalog 取版本。默认 `catalog:` 对应一个 dsh 版本；需要更新 dsh 的插件，dsh 相关的开发依赖改用命名 catalog（例如 `catalog:dsh-0.2.2`）。构建脚本按插件 dsh 开发依赖所在的 catalog 判断它针对哪个 dsh 版本，并据此检查 `engines.dsh`。
+- 每个插件有自己的 lockfile 和 `node_modules`（`sharedWorkspaceLockfile: false`），不同 dsh 版本的包不会互相解析到对方。仓库根目录只放构建和测试工具。
+
 ## 从 GitHub 安装带来的约束
 
 用户不经过 npm，直接从 GitHub 安装单个插件：

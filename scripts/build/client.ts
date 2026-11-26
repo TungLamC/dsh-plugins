@@ -11,7 +11,8 @@ import type { Manifest } from './manifest.ts'
 
 /**
  * Modules the dsh web shell shares with every plugin bundle (dsh 0.2.1-rc.5,
- * packages/client/web/src/platform.ts). Update together with the catalog's dsh pin.
+ * packages/client/web/src/platform.ts; the same list in 0.2.2-rc.5). Update together
+ * with the catalogs' dsh pins.
  */
 export const PLATFORM_MODULES: readonly string[] = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
